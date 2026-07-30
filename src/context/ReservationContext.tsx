@@ -168,11 +168,10 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
     const groupId = crypto.randomUUID();
     const date = new Date(group.startDate);
     const endDate = new Date(group.endDate);
-    const rows: DbReservation[] = [];
+    const rows: Omit<DbReservation, 'id' | 'created_at'>[] = [];
 
     while (date <= endDate) {
       rows.push({
-        id: 0,
         room_id: group.roomId,
         customer_id: group.guestId,
         date: date.toISOString().slice(0, 10),
@@ -181,9 +180,8 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
         total_price: group.totalPrice,
         amount_paid: group.amountPaid,
         notes: group.notes,
-        created_at: new Date().toISOString(),
         meal_plan: group.mealPlan,
-      } as DbReservation);
+      });
       date.setDate(date.getDate() + 1);
     }
 
@@ -193,6 +191,12 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
 
   const updateReservationGroup = async (group: ReservationGroup): Promise<boolean> => {
     if (!supabase) return false;
+
+    const { data: oldRows } = await supabase
+      .from('reservations')
+      .select('id,room_id,customer_id,date,status,group_id,total_price,amount_paid,notes,meal_plan')
+      .eq('group_id', group.groupId);
+
     const { error: deleteErr } = await supabase
       .from('reservations')
       .delete()
@@ -201,11 +205,10 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
 
     const date = new Date(group.startDate);
     const endDate = new Date(group.endDate);
-    const rows: DbReservation[] = [];
+    const rows: Omit<DbReservation, 'id' | 'created_at'>[] = [];
 
     while (date <= endDate) {
       rows.push({
-        id: 0,
         room_id: group.roomId,
         customer_id: group.guestId,
         date: date.toISOString().slice(0, 10),
@@ -214,14 +217,20 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
         total_price: group.totalPrice,
         amount_paid: group.amountPaid,
         notes: group.notes,
-        created_at: new Date().toISOString(),
         meal_plan: group.mealPlan,
-      } as DbReservation);
+      });
       date.setDate(date.getDate() + 1);
     }
 
     const { error: insertErr } = await supabase.from('reservations').insert(rows);
-    if (insertErr) return false;
+    if (insertErr) {
+      if (oldRows && oldRows.length > 0) {
+        const restoreRows = oldRows.map(({ id, ...rest }) => rest);
+        await supabase.from('reservations').insert(restoreRows);
+      }
+      return false;
+    }
+
     await loadData();
     return true;
   };
