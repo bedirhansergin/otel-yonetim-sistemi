@@ -8,7 +8,11 @@ export function HomePage() {
   const { rooms, reservations, loading, openReservation } = context;
 
   const today = new Date().toISOString().slice(0, 10);
-  const todayReservations = reservations.filter((r) => r.startDate <= today && r.endDate >= today);
+  const todayReservations = reservations.filter((r) => {
+    if (r.startDate > today || r.endDate < today) return false;
+    const days = (new Date(r.endDate).getTime() - new Date(r.startDate).getTime()) / 86400000;
+    return days <= 35;
+  });
   const todayCheckIns = reservations.filter((r) => r.startDate === today);
   const todayCheckOuts = reservations.filter((r) => r.endDate === today);
   const occupiedRoomIds = new Set(todayReservations.map((r) => r.roomId));
