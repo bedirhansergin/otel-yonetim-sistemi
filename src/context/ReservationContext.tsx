@@ -55,6 +55,25 @@ export interface ReservationContextValue {
 
 export const ReservationContext = createContext<ReservationContextValue | null>(null);
 
+function mapMealPlanToDisplay(dbMealPlan: string, notes: string | null): string {
+  const noteCheck = (notes ?? '').toUpperCase();
+  const mealCheck = dbMealPlan.toLowerCase();
+  if (noteCheck.includes('YEMEKLİ') || mealCheck === 'yemekli') return 'Tam Pansiyon';
+  switch (mealCheck) {
+    case 'kahvalti': return 'Kahvaltı';
+    case 'tam_pansiyon': return 'Tam Pansiyon';
+    default: return 'Sadece Oda';
+  }
+}
+
+function mapMealPlanToDb(display: string): string {
+  switch (display) {
+    case 'Kahvaltı': return 'kahvalti';
+    case 'Tam Pansiyon': return 'tam_pansiyon';
+    default: return 'yemeksiz';
+  }
+}
+
 function groupReservations(
   dbReservations: DbReservation[],
   roomsMap: Map<number, Room>,
@@ -84,7 +103,7 @@ function groupReservations(
       startDate: first.date,
       endDate: last.date,
       status: first.status,
-      mealPlan: first.meal_plan ?? '',
+      mealPlan: mapMealPlanToDisplay(first.meal_plan, first.notes),
       totalPrice: first.total_price,
       amountPaid: first.amount_paid,
       notes: first.notes,
@@ -180,7 +199,7 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
         total_price: group.totalPrice,
         amount_paid: group.amountPaid,
         notes: group.notes,
-        meal_plan: group.mealPlan,
+        meal_plan: mapMealPlanToDb(group.mealPlan),
       });
       date.setDate(date.getDate() + 1);
     }
@@ -217,7 +236,7 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
         total_price: group.totalPrice,
         amount_paid: group.amountPaid,
         notes: group.notes,
-        meal_plan: group.mealPlan,
+        meal_plan: mapMealPlanToDb(group.mealPlan),
       });
       date.setDate(date.getDate() + 1);
     }

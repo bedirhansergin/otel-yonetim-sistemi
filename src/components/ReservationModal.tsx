@@ -1,7 +1,7 @@
 ﻿import { FormEvent, useContext, useEffect, useState } from 'react';
 import { ReservationContext, type ReservationGroup } from '../context/ReservationContext';
 
-const mealOptions = ['yemeksiz', 'kahvalti', 'yarim pansiyon', 'tam pansiyon'];
+const mealOptions = ['Sadece Oda', 'Kahvaltı', 'Tam Pansiyon'];
 
 export function ReservationModal() {
   const context = useContext(ReservationContext);
@@ -47,7 +47,7 @@ export function ReservationModal() {
               startDate: new Date().toISOString().slice(0, 10),
               endDate: new Date().toISOString().slice(0, 10),
               status: 'occupied',
-              mealPlan: 'yemeksiz',
+              mealPlan: 'Sadece Oda',
               totalPrice: 0,
               amountPaid: 0,
               notes: '',
