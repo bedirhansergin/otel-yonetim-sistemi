@@ -8,14 +8,14 @@ export function HomePage() {
   const { rooms, reservations, loading, openReservation } = context;
 
   const today = new Date().toISOString().slice(0, 10);
-  const todayReservations = reservations.filter((r) => {
-    if (r.startDate > today || r.endDate < today) return false;
+  const allTodayReservations = reservations.filter((r) => r.startDate <= today && r.endDate >= today);
+  const displayedReservations = allTodayReservations.filter((r) => {
     const days = (new Date(r.endDate).getTime() - new Date(r.startDate).getTime()) / 86400000;
     return days <= 35;
   });
   const todayCheckIns = reservations.filter((r) => r.startDate === today);
   const todayCheckOuts = reservations.filter((r) => r.endDate === today);
-  const occupiedRoomIds = new Set(todayReservations.map((r) => r.roomId));
+  const occupiedRoomIds = new Set(allTodayReservations.map((r) => r.roomId));
   const totalPending = reservations.reduce((sum, r) => sum + (r.totalPrice - r.amountPaid), 0);
 
   const summaryCards = [
@@ -64,7 +64,7 @@ export function HomePage() {
             <p className="mt-2 text-sm text-slate-400">Bugün otelde konaklayan misafirler.</p>
           </div>
           <span className="rounded-full bg-white/5 px-4 py-2 text-sm text-slate-300">
-            {todayReservations.length} kayıt
+            {displayedReservations.length} kayıt
           </span>
         </div>
         <div className="grid gap-3">
@@ -72,8 +72,8 @@ export function HomePage() {
             <p className="rounded-3xl border border-dashed border-white/10 bg-surface/80 px-5 py-4 text-sm text-slate-300">
               Yükleniyor...
             </p>
-          ) : todayReservations.length > 0 ? (
-            todayReservations.slice(0, 10).map((res) => (
+          ) : displayedReservations.length > 0 ? (
+            displayedReservations.slice(0, 10).map((res) => (
               <button
                 key={res.groupId}
                 type="button"
