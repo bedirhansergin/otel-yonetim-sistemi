@@ -1,0 +1,9 @@
+﻿{
+  "roo-cline.vsCodeLmModelSelector": {
+    "vendor": "ollama",
+    "family": "qwen2.5-coder:7b"
+  },
+  "roo-cline.apiRequestTimeout": 600,
+  "roo-cline.debugProxy.enabled": false,
+  "roo-cline.debug": false
+}
