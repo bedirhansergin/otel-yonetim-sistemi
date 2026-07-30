@@ -1,12 +1,15 @@
 ﻿import { BrowserRouter, NavLink, Route, Routes } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { ReservationProvider } from './context/ReservationContext';
 import { HomePage } from './pages/HomePage';
 import { RoomsPage } from './pages/RoomsPage';
 import { GuestsPage } from './pages/GuestsPage';
 import { AccountingPage } from './pages/AccountingPage';
 import { GanttPage } from './pages/GanttPage';
 import { JandarmaPage } from './pages/JandarmaPage';
-import { ReservationProvider } from './context/ReservationContext';
+import { LoginPage } from './pages/LoginPage';
 import { ReservationModal } from './components/ReservationModal';
+import { LogOut } from 'lucide-react';
 
 const navItems = [
   { to: '/', label: 'Anasayfa' },
@@ -17,7 +20,8 @@ const navItems = [
   { to: '/jandarma', label: 'Jandarma KBS' }
 ];
 
-function App() {
+function AuthenticatedApp() {
+  const { username, logout } = useAuth();
   return (
     <ReservationProvider>
       <BrowserRouter>
@@ -44,6 +48,19 @@ function App() {
                   </NavLink>
                 ))}
               </nav>
+              <div className="mt-auto pt-6 border-t border-white/5">
+                <div className="flex items-center justify-between px-4 py-2">
+                  <span className="text-sm text-slate-400">{username}</span>
+                  <button
+                    type="button"
+                    onClick={logout}
+                    className="rounded-xl p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                    title="Çıkış Yap"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             </aside>
 
             <main className="flex-1">
@@ -78,4 +95,15 @@ function App() {
   );
 }
 
-export default App;
+function AppContent() {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? <AuthenticatedApp /> : <LoginPage />;
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}
