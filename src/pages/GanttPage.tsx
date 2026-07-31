@@ -1,5 +1,5 @@
 ﻿import { useContext, useMemo, useState } from 'react';
-import { ReservationContext, type ReservationGroup } from '../context/ReservationContext';
+import { ReservationContext, normalizeTurkish, type ReservationGroup } from '../context/ReservationContext';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 
 const DAY_NAMES = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
@@ -82,9 +82,9 @@ export function GanttPage() {
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
-    const q = searchQuery.toLowerCase().trim();
+    const q = normalizeTurkish(searchQuery).trim();
     return reservations
-      .filter((r) => r.guestName.toLowerCase().includes(q))
+      .filter((r) => normalizeTurkish(r.guestName).includes(q))
       .slice(0, 8);
   }, [reservations, searchQuery]);
 
