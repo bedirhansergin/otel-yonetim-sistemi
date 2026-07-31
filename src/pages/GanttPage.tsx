@@ -244,13 +244,9 @@ export function GanttPage() {
                           </span>
                         </button>
                       ) : (
-                        <button
-                          type="button"
-                          className="w-full h-full min-h-[80px] px-3 py-3 text-left hover:bg-white/[0.03] transition"
-                          title="Boş"
-                        >
+                        <div className="w-full h-full min-h-[80px] px-3 py-3 text-left">
                           <span className="text-xs text-slate-600">Boş</span>
-                        </button>
+                        </div>
                       )}
                     </div>
                   );

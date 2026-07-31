@@ -12,6 +12,7 @@ export function ReservationModal() {
     closeReservation,
     rooms,
     guests,
+    reservations,
     updateReservationGroup,
     addReservationGroup,
   } = context;
@@ -26,10 +27,30 @@ export function ReservationModal() {
     if (selectedReservation && !showNewForm) {
       setFormState({ ...selectedReservation });
       setError('');
-    } else if (!selectedReservation) {
-      setShowNewForm(false);
     }
-  }, [selectedReservation, showNewForm]);
+  }, [selectedReservation]);
+
+  const handleClose = () => {
+    setShowNewForm(false);
+    setFormState(null);
+    setError('');
+    closeReservation();
+  };
+
+  function checkOverlap(): boolean {
+    if (!formState) return false;
+    const start = formState.startDate;
+    const end = formState.endDate;
+    const roomId = formState.roomId;
+    const groupId = formState.groupId;
+
+    for (const r of reservations) {
+      if (r.roomId !== roomId) continue;
+      if (groupId && r.groupId === groupId) continue;
+      if (r.startDate < end && start < r.endDate) return true;
+    }
+    return false;
+  }
 
   if (!selectedReservation && !showNewForm) {
     return (
@@ -89,15 +110,25 @@ export function ReservationModal() {
     event.preventDefault();
     if (!formState) return;
 
+    if (!formState.roomId || !formState.guestId) {
+      setError('Lütfen misafir ve oda seçin.');
+      return;
+    }
+
     if (formState.startDate > formState.endDate) {
       setError('Giriş tarihi çıkış tarihinden önce olmalı.');
+      return;
+    }
+
+    if (checkOverlap()) {
+      setError('Bu oda seçilen tarihlerde doludur. Lütfen farklı bir tarih veya oda seçin.');
       return;
     }
 
     setError('');
 
     if (isNew && formState.groupId === '') {
-      await addReservationGroup({
+      const ok = await addReservationGroup({
         roomId: formState.roomId,
         roomNumber: formState.roomNumber,
         guestId: formState.guestId,
@@ -110,11 +141,19 @@ export function ReservationModal() {
         amountPaid: formState.amountPaid,
         notes: formState.notes,
       });
+      if (!ok) {
+        setError('Rezervasyon eklenirken bir hata oluştu. Lütfen tekrar deneyin.');
+        return;
+      }
       setShowNewForm(false);
     } else {
-      await updateReservationGroup(formState);
+      const ok = await updateReservationGroup(formState);
+      if (!ok) {
+        setError('Güncelleme sırasında bir hata oluştu.');
+        return;
+      }
     }
-    closeReservation();
+    handleClose();
   };
 
   return (
@@ -133,7 +172,7 @@ export function ReservationModal() {
           </div>
           <button
             type="button"
-            onClick={closeReservation}
+            onClick={handleClose}
             className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 transition hover:bg-white/10"
           >
             Kapat
@@ -154,6 +193,7 @@ export function ReservationModal() {
               onChange={(e) => handleChange('guestId', parseInt(e.target.value))}
               className="rounded-2xl border border-white/10 bg-surface px-4 py-3 text-white outline-none transition focus:border-accent/60"
             >
+              <option value={0}>Misafir seçin...</option>
               {guests.map((g) => (
                 <option key={g.id} value={g.id}>
                   {g.fullName}
@@ -169,6 +209,7 @@ export function ReservationModal() {
               onChange={(e) => handleChange('roomId', parseInt(e.target.value))}
               className="rounded-2xl border border-white/10 bg-surface px-4 py-3 text-white outline-none transition focus:border-accent/60"
             >
+              <option value={0}>Oda seçin...</option>
               {rooms.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.roomNumber} ({r.bedType})
@@ -261,7 +302,7 @@ export function ReservationModal() {
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-end">
             <button
               type="button"
-              onClick={closeReservation}
+              onClick={handleClose}
               className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm text-slate-200 transition hover:bg-white/10"
             >
               İptal

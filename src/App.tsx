@@ -13,7 +13,7 @@ import { LogOut } from 'lucide-react';
 
 const navItems = [
   { to: '/', label: 'Anasayfa' },
-  { to: '/gantt', label: 'Aylık Çizelge' },
+  { to: '/gantt', label: 'Haftalık Çizelge' },
   { to: '/odalar', label: 'Odalar' },
   { to: '/misafirler', label: 'Misafir Bilgileri' },
   { to: '/muhasebe', label: 'Muhasebe Panosu' },

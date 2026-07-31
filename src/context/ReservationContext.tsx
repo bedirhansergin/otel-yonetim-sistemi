@@ -49,16 +49,16 @@ export interface ReservationContextValue {
   selectedReservation: ReservationGroup | null;
   openReservation: (groupId: string) => void;
   closeReservation: () => void;
-  addReservationGroup: (group: Omit<ReservationGroup, 'groupId' | 'dates'>) => Promise<void>;
+  addReservationGroup: (group: Omit<ReservationGroup, 'groupId' | 'dates'>) => Promise<boolean>;
   updateReservationGroup: (group: ReservationGroup) => Promise<boolean>;
 }
 
 export const ReservationContext = createContext<ReservationContextValue | null>(null);
 
 function mapMealPlanToDisplay(dbMealPlan: string, notes: string | null): string {
-  const noteCheck = (notes ?? '').toUpperCase();
+  const noteCheck = normalizeTurkish(notes ?? '');
   const mealCheck = dbMealPlan.toLowerCase();
-  if (noteCheck.includes('YEMEKLİ') || mealCheck === 'yemekli') return 'Tam Pansiyon';
+  if (noteCheck.includes('yemekli') || mealCheck === 'yemekli') return 'Tam Pansiyon';
   switch (mealCheck) {
     case 'kahvalti': return 'Kahvaltı';
     case 'tam_pansiyon': return 'Tam Pansiyon';
@@ -112,6 +112,11 @@ function groupReservations(
   }
   groups.sort((a, b) => a.startDate.localeCompare(b.startDate));
   return groups;
+}
+
+export function getLocalDate(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export function normalizeTurkish(value: string) {
@@ -182,8 +187,8 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
   const openReservation = (groupId: string) => setSelectedGroupId(groupId);
   const closeReservation = () => setSelectedGroupId(null);
 
-  const addReservationGroup = async (group: Omit<ReservationGroup, 'groupId' | 'dates'>) => {
-    if (!supabase) return;
+  const addReservationGroup = async (group: Omit<ReservationGroup, 'groupId' | 'dates'>): Promise<boolean> => {
+    if (!supabase) return false;
     const groupId = crypto.randomUUID();
     const date = new Date(group.startDate);
     const endDate = new Date(group.endDate);
@@ -205,7 +210,9 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
     }
 
     const { error } = await supabase.from('reservations').insert(rows);
-    if (!error) await loadData();
+    if (error) return false;
+    await loadData();
+    return true;
   };
 
   const updateReservationGroup = async (group: ReservationGroup): Promise<boolean> => {

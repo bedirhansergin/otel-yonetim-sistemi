@@ -1,13 +1,13 @@
 ﻿import { ArrowRight, CalendarDays, CreditCard, Users } from 'lucide-react';
 import { useContext } from 'react';
-import { ReservationContext } from '../context/ReservationContext';
+import { ReservationContext, getLocalDate } from '../context/ReservationContext';
 
 export function HomePage() {
   const context = useContext(ReservationContext);
   if (!context) return null;
   const { rooms, reservations, loading, openReservation } = context;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDate();
   const allTodayReservations = reservations.filter((r) => r.startDate <= today && r.endDate >= today);
   const displayedReservations = allTodayReservations.filter((r) => {
     const days = (new Date(r.endDate).getTime() - new Date(r.startDate).getTime()) / 86400000;
@@ -154,9 +154,9 @@ export function HomePage() {
                   </p>
                 </div>
               ))}
-            {totalPending === 0 && (
-              <p className="rounded-3xl bg-surface/80 p-4 text-sm text-slate-400">Tahsilat bekleyen yok.</p>
-            )}
+                {totalPending === 0 ? (
+                <p className="rounded-3xl bg-surface/80 p-4 text-sm text-slate-400">Tahsilat bekleyen yok.</p>
+              ) : null}
           </div>
         </article>
       </section>
