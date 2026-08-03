@@ -1,39 +1,44 @@
-﻿import { ArrowRight, CalendarDays, CreditCard, Users } from 'lucide-react';
-import { useContext } from 'react';
+﻿import { ArrowRight, CreditCard, Database, Trash2, Undo2, Users } from 'lucide-react';
+import { useContext, useEffect, useState } from 'react';
 import { ReservationContext, getLocalDate } from '../context/ReservationContext';
+import { getBackups, deleteBackup, clearAllBackups, type BackupEntry } from '../lib/backup';
 
 export function HomePage() {
   const context = useContext(ReservationContext);
   if (!context) return null;
-  const { rooms, reservations, loading, openReservation } = context;
+  const { rooms, reservations, openReservation, restoreBackup } = context;
+  const [showBackups, setShowBackups] = useState(false);
+  const [backups, setBackups] = useState<BackupEntry[]>([]);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (showBackups) setBackups(getBackups());
+  }, [showBackups]);
 
   const today = getLocalDate();
   const allTodayReservations = reservations.filter((r) => r.startDate <= today && r.endDate >= today);
-  const displayedReservations = allTodayReservations.filter((r) => {
-    const days = (new Date(r.endDate).getTime() - new Date(r.startDate).getTime()) / 86400000;
-    return days <= 35;
-  });
   const todayCheckIns = reservations.filter((r) => r.startDate === today);
   const todayCheckOuts = reservations.filter((r) => r.endDate === today);
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+  const tomorrowCheckIns = reservations.filter((r) => r.startDate === tomorrowStr);
+  const tomorrowCheckOuts = reservations.filter((r) => r.endDate === tomorrowStr);
   const occupiedRoomIds = new Set(allTodayReservations.map((r) => r.roomId));
   const totalPending = reservations.reduce((sum, r) => sum + (r.totalPrice - r.amountPaid), 0);
+  const pendingReservations = reservations.filter((r) => r.amountPaid < r.totalPrice);
 
   const summaryCards = [
-    { label: 'Toplam Oda', value: rooms.length, icon: 'door' },
     { label: 'Dolu Odalar', value: occupiedRoomIds.size, icon: 'users' },
-    { label: 'Bugün Giriş', value: todayCheckIns.length, icon: 'calendar' },
-    { label: 'Bugün Çıkış', value: todayCheckOuts.length, icon: 'calendar' },
+    { label: 'Boş Odalar', value: rooms.length - occupiedRoomIds.size, icon: 'door' },
   ];
 
   function iconFor(label: string) {
     switch (label) {
-      case 'Toplam Oda':
-        return <ArrowRight className="h-5 w-5" />;
       case 'Dolu Odalar':
         return <Users className="h-5 w-5" />;
-      case 'Bugün Giriş':
-      case 'Bugün Çıkış':
-        return <CalendarDays className="h-5 w-5" />;
+      case 'Boş Odalar':
+        return <ArrowRight className="h-5 w-5" />;
       default:
         return <CreditCard className="h-5 w-5" />;
     }
@@ -41,9 +46,9 @@ export function HomePage() {
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 xl:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2">
         {summaryCards.map((card) => (
-          <article key={card.label} className="rounded-3xl border border-white/10 bg-slate-950/70 p-6 shadow-soft">
+          <article key={card.label} className="rounded-3xl border-2 border-slate-600 bg-slate-950/90 p-6 shadow-soft">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm text-slate-400">{card.label}</p>
@@ -57,108 +62,148 @@ export function HomePage() {
         ))}
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-6 shadow-soft">
-        <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-xl font-semibold text-white">Aktif Rezervasyonlar</h3>
-            <p className="mt-2 text-sm text-slate-400">Bugün otelde konaklayan misafirler.</p>
+      <section className="grid gap-4 sm:grid-cols-2">
+        {[
+          { title: 'Bugün Giriş', items: todayCheckIns, empty: 'Giriş yok' },
+          { title: 'Bugün Çıkış', items: todayCheckOuts, empty: 'Çıkış yok' },
+          { title: 'Yarın Giriş', items: tomorrowCheckIns, empty: 'Giriş yok' },
+          { title: 'Yarın Çıkış', items: tomorrowCheckOuts, empty: 'Çıkış yok' },
+        ].map((card) => (
+          <div key={card.title} className="overflow-hidden rounded-3xl border-2 border-slate-600 bg-slate-950/90 shadow-soft">
+            <div className="bg-slate-800 px-5 py-3 border-b-2 border-slate-600">
+              <h4 className="text-base font-bold text-white">{card.title}</h4>
+            </div>
+            <div className="p-2">
+              {card.items.length === 0 ? (
+                <p className="rounded-2xl bg-slate-900/50 px-4 py-3 text-sm text-slate-500">{card.empty}</p>
+              ) : (
+                card.items.slice(0, 10).map((r, i) => (
+                  <button
+                    key={r.groupId}
+                    type="button"
+                    onClick={() => openReservation(r.groupId)}
+                    className={`w-full text-left rounded-xl bg-slate-900/60 hover:bg-slate-800 px-4 py-3 transition ${
+                      i < card.items.slice(0, 10).length - 1 ? 'mb-1.5' : ''
+                    }`}
+                  >
+                    <span className="text-sm font-medium text-white">{r.guestName}</span>
+                    <span className="text-sm text-slate-400 ml-2">— {r.roomNumber}</span>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
-          <span className="rounded-full bg-white/5 px-4 py-2 text-sm text-slate-300">
-            {displayedReservations.length} kayıt
-          </span>
-        </div>
-        <div className="grid gap-3">
-          {loading ? (
-            <p className="rounded-3xl border border-dashed border-white/10 bg-surface/80 px-5 py-4 text-sm text-slate-300">
-              Yükleniyor...
-            </p>
-          ) : displayedReservations.length > 0 ? (
-            displayedReservations.slice(0, 10).map((res) => (
-              <button
-                key={res.groupId}
-                type="button"
-                onClick={() => openReservation(res.groupId)}
-                className="w-full text-left rounded-3xl border border-white/10 bg-panel/80 px-5 py-4 text-white transition hover:border-accent/40 hover:bg-accent/5"
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm text-slate-400">{res.roomNumber} | {res.mealPlan}</p>
-                    <p className="mt-2 text-lg font-semibold text-white">{res.guestName}</p>
-                  </div>
-                  <span className="rounded-2xl bg-accent/10 px-3 py-2 text-sm text-accent">
-                    {res.startDate} → {res.endDate}
-                  </span>
-                </div>
-              </button>
-            ))
-          ) : (
-            <p className="rounded-3xl border border-dashed border-white/10 bg-surface/80 px-5 py-4 text-sm text-slate-300">
-              Bugün için aktif rezervasyon bulunamadı.
-            </p>
-          )}
-        </div>
+        ))}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-3">
-        <article className="rounded-3xl border border-white/10 bg-slate-950/70 p-6 shadow-soft xl:col-span-2">
-          <div className="mb-5 flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-xl font-semibold text-white">Giriş/Çıkış Planı</h3>
-              <p className="mt-2 text-sm text-slate-400">Bugün ve yarın için detaylar.</p>
-            </div>
+        <div className="xl:col-span-2 overflow-hidden rounded-3xl border-2 border-slate-600 bg-slate-950/90 shadow-soft">
+          <div className="bg-slate-800 px-5 py-3 border-b-2 border-slate-600">
+            <h3 className="text-base font-bold text-white">Bekleyen Tahsilatlar</h3>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-3xl border border-white/10 bg-surface/80 p-5">
-              <h4 className="text-lg font-semibold text-white">Bugün Giriş Yapacaklar</h4>
-              <ul className="mt-4 space-y-3">
-                {todayCheckIns.slice(0, 5).map((r) => (
-                  <li key={r.groupId} className="rounded-2xl bg-slate-900/80 p-3 text-sm text-slate-200">
-                    {r.guestName} - {r.roomNumber}
-                  </li>
-                ))}
-                {todayCheckIns.length === 0 && (
-                  <li className="rounded-2xl bg-slate-900/80 p-3 text-sm text-slate-400">Giriş yok</li>
-                )}
-              </ul>
-            </div>
-            <div className="rounded-3xl border border-white/10 bg-surface/80 p-5">
-              <h4 className="text-lg font-semibold text-white">Bugün Çıkış Yapacaklar</h4>
-              <ul className="mt-4 space-y-3">
-                {todayCheckOuts.slice(0, 5).map((r) => (
-                  <li key={r.groupId} className="rounded-2xl bg-slate-900/80 p-3 text-sm text-slate-200">
-                    {r.guestName} - {r.roomNumber}
-                  </li>
-                ))}
-                {todayCheckOuts.length === 0 && (
-                  <li className="rounded-2xl bg-slate-900/80 p-3 text-sm text-slate-400">Çıkış yok</li>
-                )}
-              </ul>
-            </div>
+          <div className="p-2">
+            {pendingReservations.length === 0 ? (
+              <p className="rounded-2xl bg-slate-900/50 px-4 py-3 text-sm text-slate-500">Tahsilat bekleyen yok.</p>
+            ) : (
+              pendingReservations.slice(0, 10).map((r, i) => (
+                <button
+                  key={r.groupId}
+                  type="button"
+                  onClick={() => openReservation(r.groupId)}
+                  className={`w-full text-left rounded-xl bg-slate-900/60 hover:bg-slate-800 px-4 py-3 transition ${
+                    i < pendingReservations.slice(0, 10).length - 1 ? 'mb-1.5' : ''
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span>
+                      <span className="text-sm font-medium text-white">{r.guestName}</span>
+                      <span className="text-sm text-slate-400 ml-2">— {r.roomNumber}</span>
+                    </span>
+                    <span className="text-xs font-semibold text-rose-400">
+                      {new Intl.NumberFormat('tr-TR').format(r.totalPrice - r.amountPaid)} TL
+                    </span>
+                  </div>
+                </button>
+              ))
+            )}
           </div>
-        </article>
+        </div>
+      </section>
 
-        <article className="rounded-3xl border border-white/10 bg-slate-950/70 p-6 shadow-soft">
-          <h3 className="text-xl font-semibold text-white">Bekleyen Tahsilatlar</h3>
-          <p className="mt-2 text-sm text-slate-400">Kalan ödemesi olan rezervasyonlar.</p>
-          <div className="mt-5 space-y-3">
-            {reservations
-              .filter((r) => r.amountPaid < r.totalPrice)
-              .slice(0, 5)
-              .map((r) => (
-                <div key={r.groupId} className="rounded-3xl bg-surface/80 p-4">
-                  <p className="text-sm text-slate-300">
-                    {r.guestName} - {r.roomNumber}
-                  </p>
-                  <p className="mt-1 text-xs text-rose-400">
-                    Kalan: {new Intl.NumberFormat('tr-TR').format(r.totalPrice - r.amountPaid)} TL
-                  </p>
-                </div>
-              ))}
-                {totalPending === 0 ? (
-                <p className="rounded-3xl bg-surface/80 p-4 text-sm text-slate-400">Tahsilat bekleyen yok.</p>
-              ) : null}
+      <section className="rounded-3xl border-2 border-slate-600 bg-slate-950/90 p-6 shadow-soft">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Database className="h-5 w-5 text-slate-400" />
+            <div>
+              <h3 className="text-lg font-semibold text-white">Veri Koruma Yedekleri</h3>
+              <p className="text-sm text-slate-400">Her rezervasyon düzenlemesinde otomatik yedek alınır.</p>
+            </div>
           </div>
-        </article>
+          <button
+            type="button"
+            onClick={() => setShowBackups(!showBackups)}
+            className="rounded-2xl border border-slate-600 bg-surface px-4 py-2.5 text-sm text-slate-200 hover:bg-white/5 transition"
+          >
+            {showBackups ? 'Gizle' : `Yedekler (${getBackups().length})`}
+          </button>
+        </div>
+
+        {showBackups && (
+          <div className="mt-5">
+            {backups.length === 0 ? (
+              <p className="rounded-2xl bg-surface/60 p-4 text-sm text-slate-400">Henüz yedek bulunmuyor. Rezervasyon düzenledikçe otomatik oluşacak.</p>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs text-slate-500">{backups.length} yedek (son 50)</span>
+                  <button
+                    type="button"
+                    onClick={() => { clearAllBackups(); setBackups([]); }}
+                    className="rounded-xl px-3 py-1.5 text-xs text-rose-400 hover:bg-rose-500/10 transition"
+                  >
+                    Tümünü Sil
+                  </button>
+                </div>
+                <div className="grid gap-2 max-h-80 overflow-y-auto">
+                  {backups.map((b) => (
+                    <div key={b.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-surface/60 p-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{b.label}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {new Date(b.timestamp).toLocaleString('tr-TR')} · {b.operation === 'update_before' ? 'Düzenleme öncesi' : 'Yeni kayıt'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          disabled={restoringId === b.id}
+                          onClick={async () => {
+                            setRestoringId(b.id);
+                            await restoreBackup(b);
+                            setRestoringId(null);
+                            setBackups(getBackups());
+                          }}
+                          className="rounded-xl p-2 text-emerald-400 hover:bg-emerald-500/10 transition disabled:opacity-50"
+                          title="Bu yedeği geri yükle"
+                        >
+                          <Undo2 className={`h-4 w-4 ${restoringId === b.id ? 'animate-spin' : ''}`} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { deleteBackup(b.id); setBackups(getBackups()); }}
+                          className="rounded-xl p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                          title="Bu yedeği sil"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </section>
     </div>
   );

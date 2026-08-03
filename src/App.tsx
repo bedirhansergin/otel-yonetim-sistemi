@@ -1,29 +1,27 @@
 ﻿import { BrowserRouter, NavLink, Route, Routes } from 'react-router-dom';
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { ReservationProvider } from './context/ReservationContext';
+import { ReservationProvider, ReservationContext } from './context/ReservationContext';
 import { HomePage } from './pages/HomePage';
 import { RoomsPage } from './pages/RoomsPage';
 import { GuestsPage } from './pages/GuestsPage';
 import { AccountingPage } from './pages/AccountingPage';
 import { GanttPage } from './pages/GanttPage';
-import { JandarmaPage } from './pages/JandarmaPage';
 import { LoginPage } from './pages/LoginPage';
 import { ReservationModal } from './components/ReservationModal';
-import { LogOut, Menu, X } from 'lucide-react';
+import { LogOut, Menu, Plus, X } from 'lucide-react';
 
 const navItems = [
   { to: '/', label: 'Anasayfa' },
-  { to: '/gantt', label: 'Haftalık Çizelge' },
+  { to: '/gantt', label: 'Aylık Çizelge' },
   { to: '/odalar', label: 'Odalar' },
   { to: '/misafirler', label: 'Misafir Bilgileri' },
   { to: '/muhasebe', label: 'Muhasebe Panosu' },
-  { to: '/jandarma', label: 'Jandarma KBS' },
 ];
 
 function MobileHeader({ onMenuToggle }: { onMenuToggle: () => void }) {
   return (
-    <div className="flex items-center justify-between gap-3 px-4 py-4 md:hidden border-b border-white/10 bg-panel/90">
+    <div className="flex items-center justify-between gap-3 px-4 py-4 md:hidden border-b-2 border-slate-600 bg-panel/95">
       <button
         type="button"
         onClick={onMenuToggle}
@@ -55,7 +53,7 @@ function MobileMenu({
   return (
     <div className="fixed inset-0 z-50 md:hidden">
       <div className="absolute inset-0 bg-slate-950/80" onClick={onClose} />
-      <div className="absolute left-0 top-0 bottom-0 w-72 bg-panel border-r border-white/10 shadow-2xl flex flex-col p-6">
+      <div className="absolute left-0 top-0 bottom-0 w-72 bg-panel border-r border-slate-600 shadow-2xl flex flex-col p-6">
         <div className="flex items-center justify-between mb-8">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Avşa Berivan Motel</p>
@@ -85,7 +83,7 @@ function MobileMenu({
             </NavLink>
           ))}
         </nav>
-        <div className="pt-6 border-t border-white/5">
+        <div className="pt-6 border-t border-slate-800">
           <div className="flex items-center justify-between px-4 py-2">
             <span className="text-sm text-slate-400">{username}</span>
             <button
@@ -100,6 +98,21 @@ function MobileMenu({
         </div>
       </div>
     </div>
+  );
+}
+
+function NewReservationButton() {
+  const context = useContext(ReservationContext);
+  if (!context) return null;
+  return (
+    <button
+      type="button"
+      onClick={context.openNewReservation}
+      className="rounded-2xl bg-accent px-5 py-3 text-sm font-semibold text-slate-950 shadow-lg transition hover:bg-accent/90 flex items-center gap-2"
+    >
+      <Plus className="h-4 w-4" />
+      Yeni Rezervasyon
+    </button>
   );
 }
 
@@ -120,11 +133,11 @@ function AuthenticatedApp() {
           />
 
           <div className="mx-auto flex min-h-screen max-w-[1600px] gap-6 px-4 py-6 md:px-8">
-            <aside className="hidden w-72 flex-col gap-4 rounded-3xl border border-white/10 bg-panel/80 p-6 shadow-soft md:flex">
+            <aside className="hidden w-72 flex-col gap-4 rounded-3xl border-2 border-slate-600 bg-panel/90 p-6 shadow-soft md:flex">
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Avşa Berivan Motel</p>
                 <h1 className="mt-3 text-3xl font-semibold text-white">Otel Yönetim Sistemi</h1>
-                <p className="mt-3 text-sm text-slate-300">36 odalı apart otelin için uzman bir kontrol paneli.</p>
+                <p className="mt-3 text-sm text-slate-300">Apart otelin için uzman bir kontrol paneli.</p>
               </div>
               <nav className="mt-8 flex flex-col gap-2">
                 {navItems.map((item) => (
@@ -141,7 +154,7 @@ function AuthenticatedApp() {
                   </NavLink>
                 ))}
               </nav>
-              <div className="mt-auto pt-6 border-t border-white/5">
+              <div className="mt-auto pt-6 border-t-2 border-slate-800">
                 <div className="flex items-center justify-between px-4 py-2">
                   <span className="text-sm text-slate-400">{username}</span>
                   <button
@@ -157,15 +170,13 @@ function AuthenticatedApp() {
             </aside>
 
             <main className="flex-1 min-w-0">
-              <div className="mb-6 rounded-3xl border border-white/10 bg-panel/80 p-4 sm:p-6 shadow-soft">
+              <div className="mb-6 rounded-3xl border-2 border-slate-600 bg-panel/90 p-4 sm:p-6 shadow-soft">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-xs sm:text-sm uppercase tracking-[0.3em] text-slate-400">Genel Bakış</p>
                     <h2 className="mt-2 text-xl sm:text-3xl font-semibold text-white">Avşa Berivan Motel Yönetim Paneli</h2>
                   </div>
-                  <div className="rounded-3xl bg-emerald-900/40 px-4 py-2 sm:py-3 text-xs sm:text-sm text-emerald-300">
-                    Supabase · Canlı veri
-                  </div>
+                  <NewReservationButton />
                 </div>
               </div>
 
@@ -176,7 +187,6 @@ function AuthenticatedApp() {
                   <Route path="/odalar" element={<RoomsPage />} />
                   <Route path="/misafirler" element={<GuestsPage />} />
                   <Route path="/muhasebe" element={<AccountingPage />} />
-                  <Route path="/jandarma" element={<JandarmaPage />} />
                 </Routes>
               </div>
             </main>

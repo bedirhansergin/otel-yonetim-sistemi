@@ -32,7 +32,7 @@ export function LoginPage() {
 
         <form
           onSubmit={handleSubmit}
-          className="rounded-3xl border border-white/10 bg-panel/80 p-8 shadow-soft space-y-5"
+          className="rounded-3xl border-2 border-slate-600 bg-panel/90 p-8 shadow-soft space-y-5"
         >
           <label className="grid gap-2 text-sm text-slate-300">
             Kullanıcı Adı
@@ -41,7 +41,7 @@ export function LoginPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoFocus
-              className="rounded-2xl border border-white/10 bg-surface px-4 py-3 text-white outline-none transition focus:border-accent/60"
+              className="rounded-2xl border-2 border-slate-600 bg-surface px-4 py-3 text-white outline-none transition focus:border-accent/60"
               placeholder="Kullanıcı adınız"
             />
           </label>
@@ -52,7 +52,7 @@ export function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="rounded-2xl border border-white/10 bg-surface px-4 py-3 text-white outline-none transition focus:border-accent/60"
+              className="rounded-2xl border-2 border-slate-600 bg-surface px-4 py-3 text-white outline-none transition focus:border-accent/60"
               placeholder="Şifreniz"
             />
           </label>

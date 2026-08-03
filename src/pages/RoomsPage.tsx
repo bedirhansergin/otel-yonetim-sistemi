@@ -6,7 +6,7 @@ export function RoomsPage() {
   if (!context) return null;
   const { rooms, reservations, loading } = context;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDate();
   const occupiedRoomIds = new Set(
     reservations.filter((r) => r.startDate <= today && r.endDate >= today).map((r) => r.roomId)
   );
@@ -21,24 +21,24 @@ export function RoomsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-6 shadow-soft">
+      <div className="rounded-3xl border-2 border-slate-600 bg-slate-950/90 p-6 shadow-soft">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Odalar</p>
             <h2 className="mt-2 text-3xl font-semibold text-white">Oda Bilgileri ve Durum</h2>
           </div>
-          <span className="rounded-3xl bg-slate-900/80 px-4 py-3 text-sm text-slate-300">
+          <span className="rounded-3xl bg-slate-900/90 px-4 py-3 text-sm text-slate-300">
             {rooms.length} oda
           </span>
         </div>
       </div>
 
       {loading ? (
-        <div className="rounded-3xl border border-white/10 bg-panel/80 p-6 text-center text-slate-400">
+        <div className="rounded-3xl border-2 border-slate-600 bg-panel/90 p-6 text-center text-slate-400">
           Yükleniyor...
         </div>
       ) : (
-        <div className="overflow-hidden rounded-3xl border border-white/10 bg-panel/80 p-4 shadow-soft">
+        <div className="overflow-hidden rounded-3xl border-2 border-slate-600 bg-panel/90 p-4 shadow-soft">
           <div className="space-y-4">
             {roomStatuses.map((room) => (
               <div key={room.id} className="rounded-3xl bg-slate-950/80 p-5">

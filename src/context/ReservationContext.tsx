@@ -8,6 +8,7 @@ import {
   type DbRoom,
   type DbCustomer,
 } from '../lib/supabaseClient';
+import { saveBackup, type BackupEntry } from '../lib/backup';
 
 export interface Room {
   id: number;
@@ -49,29 +50,81 @@ export interface ReservationContextValue {
   selectedReservation: ReservationGroup | null;
   openReservation: (groupId: string) => void;
   closeReservation: () => void;
+  openNewReservation: () => void;
+  selectedGroupId: string | null;
   addReservationGroup: (group: Omit<ReservationGroup, 'groupId' | 'dates'>) => Promise<boolean>;
-  updateReservationGroup: (group: ReservationGroup) => Promise<boolean>;
+  updateReservationGroup: (group: ReservationGroup) => Promise<{ ok: boolean; error?: string }>;
+  recoverLostReservations: () => Promise<boolean>;
+  restoreBackup: (entry: BackupEntry) => Promise<boolean>;
+  deleteReservationGroup: (groupId: string) => Promise<boolean>;
 }
 
 export const ReservationContext = createContext<ReservationContextValue | null>(null);
 
-function mapMealPlanToDisplay(dbMealPlan: string, notes: string | null): string {
-  const noteCheck = normalizeTurkish(notes ?? '');
-  const mealCheck = dbMealPlan.toLowerCase();
-  if (noteCheck.includes('yemekli') || mealCheck === 'yemekli') return 'Tam Pansiyon';
-  switch (mealCheck) {
-    case 'kahvalti': return 'Kahvaltı';
-    case 'tam_pansiyon': return 'Tam Pansiyon';
-    default: return 'Sadece Oda';
-  }
+export interface ExtraGuest {
+  name: string;
+  phone: string;
+  tc: string;
 }
 
-function mapMealPlanToDb(display: string): string {
-  switch (display) {
-    case 'Kahvaltı': return 'kahvalti';
-    case 'Tam Pansiyon': return 'tam_pansiyon';
-    default: return 'yemeksiz';
+export function parseStructuredNotes(notes: string | null): { cleanNotes: string; mealPlan: string | null; extraGuests: ExtraGuest[] } {
+  const raw = (notes ?? '').trimEnd();
+  const lines = raw.split('\n');
+  const metaStart = lines.findIndex((l) => l.startsWith('-- ') && (l.includes('Kahvaltı') || l.includes('Tam Pansiyon') || l.startsWith('-- Misafir:')));
+
+  let cleanNotes = raw;
+  let mealPlan: string | null = null;
+  const extraGuests: ExtraGuest[] = [];
+
+  if (metaStart >= 0) {
+    cleanNotes = lines.slice(0, metaStart).join('\n').trimEnd();
+    const metaLines = lines.slice(metaStart);
+
+    for (const ml of metaLines) {
+      if (ml === '-- Kahvaltı') mealPlan = 'Kahvaltı';
+      else if (ml === '-- Tam Pansiyon') mealPlan = 'Tam Pansiyon';
+      else if (ml.startsWith('-- Misafir: ')) {
+        const parts = ml.slice(12).split('|');
+        extraGuests.push({
+          name: (parts[0] ?? '').trim(),
+          phone: (parts[1] ?? '').trim(),
+          tc: (parts[2] ?? '').trim(),
+        });
+      }
+    }
   }
+
+  return { cleanNotes, mealPlan, extraGuests };
+}
+
+export function buildStructuredNotes(cleanNotes: string, mealPlan: string, extraGuests: ExtraGuest[]): string {
+  const parts: string[] = [];
+  if (cleanNotes.trim()) parts.push(cleanNotes.trimEnd());
+
+  if (mealPlan === 'Kahvaltı' || mealPlan === 'Tam Pansiyon') {
+    parts.push(`-- ${mealPlan}`);
+  }
+
+  for (const eg of extraGuests) {
+    const name = eg.name.trim();
+    if (!name) continue;
+    parts.push(`-- Misafir: ${name} | ${eg.phone.trim()} | ${eg.tc.trim()}`);
+  }
+
+  return parts.join('\n');
+}
+
+function mapMealPlanToDisplay(dbMealPlan: string, notes: string | null): string {
+  const parsed = parseStructuredNotes(notes);
+  if (parsed.mealPlan) return parsed.mealPlan;
+
+  const noteCheck = normalizeTurkish(notes ?? '');
+  if (noteCheck.includes('yemekli') || dbMealPlan.toLowerCase() === 'yemekli') return 'Tam Pansiyon';
+  return 'Sadece Oda';
+}
+
+function mapMealPlanToDb(_display: string): string {
+  return 'yemeksiz';
 }
 
 function groupReservations(
@@ -88,6 +141,7 @@ function groupReservations(
 
   const groups: ReservationGroup[] = [];
   for (const [groupId, rows] of groupMap) {
+    if (rows.length === 0) continue;
     rows.sort((a, b) => a.date.localeCompare(b.date));
     const first = rows[0];
     const last = rows[rows.length - 1];
@@ -121,7 +175,8 @@ export function getLocalDate(): string {
 
 export function normalizeTurkish(value: string) {
   return value
-    .toLowerCase()
+    .replace(/İ/g, 'i')
+    .toLocaleLowerCase('tr-TR')
     .replace(/ı/g, 'i')
     .replace(/ş/g, 's')
     .replace(/ğ/g, 'g')
@@ -186,6 +241,7 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
 
   const openReservation = (groupId: string) => setSelectedGroupId(groupId);
   const closeReservation = () => setSelectedGroupId(null);
+  const openNewReservation = () => setSelectedGroupId('__new__');
 
   const addReservationGroup = async (group: Omit<ReservationGroup, 'groupId' | 'dates'>): Promise<boolean> => {
     if (!supabase) return false;
@@ -211,12 +267,94 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
 
     const { error } = await supabase.from('reservations').insert(rows);
     if (error) return false;
-    await loadData();
+
+    const now = new Date().toISOString();
+    const newRows: DbReservation[] = rows.map((r) => ({
+      id: 0,
+      room_id: r.room_id,
+      customer_id: r.customer_id,
+      date: r.date,
+      status: r.status,
+      group_id: r.group_id,
+      total_price: r.total_price ?? 0,
+      amount_paid: r.amount_paid ?? 0,
+      notes: r.notes ?? null,
+      created_at: now,
+      meal_plan: r.meal_plan ?? 'yemeksiz',
+    }));
+
+    setDbReservations((prev) => [...prev, ...newRows]);
+
+    saveBackup({
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      operation: 'create_after',
+      label: `${group.guestName} - ${group.roomNumber} (${group.startDate} → ${group.endDate})`,
+      reservation: {
+        groupId,
+        roomId: group.roomId,
+        roomNumber: group.roomNumber,
+        guestId: group.guestId,
+        guestName: group.guestName,
+        startDate: group.startDate,
+        endDate: group.endDate,
+        status: group.status,
+        mealPlan: group.mealPlan,
+        totalPrice: group.totalPrice,
+        amountPaid: group.amountPaid,
+        notes: group.notes,
+        dates: rows.map((r) => r.date),
+      },
+    });
+
+    refreshCustomersAndRooms();
+
     return true;
   };
 
-  const updateReservationGroup = async (group: ReservationGroup): Promise<boolean> => {
-    if (!supabase) return false;
+  const refreshCustomersAndRooms = useCallback(async () => {
+    if (!supabase) return;
+    const [roomsRes, guestsRes] = await Promise.all([
+      fetchRooms(),
+      fetchCustomers(),
+    ]);
+    if (roomsRes.data) {
+      setRooms(
+        (roomsRes.data as DbRoom[]).map((r) => ({
+          id: r.id,
+          roomNumber: r.room_number,
+          block: r.block,
+          floor: r.floor,
+          bedType: r.bed_type,
+        }))
+      );
+    }
+    if (guestsRes.data) {
+      setGuests(
+        (guestsRes.data as DbCustomer[]).map((g) => ({
+          id: g.id,
+          fullName: g.full_name,
+          phone: g.phone,
+          idNumber: g.id_number,
+          nationality: g.nationality,
+        }))
+      );
+    }
+  }, []);
+
+  const updateReservationGroup = async (group: ReservationGroup): Promise<{ ok: boolean; error?: string }> => {
+    if (!supabase) return { ok: false, error: 'Veritabanı bağlantısı yok.' };
+
+    const oldReservation = reservations.find((r) => r.groupId === group.groupId);
+    if (oldReservation) {
+      saveBackup({
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        operation: 'update_before',
+        label: `${oldReservation.guestName} - ${oldReservation.roomNumber} (${oldReservation.startDate} → ${oldReservation.endDate})`,
+        reservation: { ...oldReservation },
+      });
+    }
 
     const { data: oldRows } = await supabase
       .from('reservations')
@@ -227,7 +365,7 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
       .from('reservations')
       .delete()
       .eq('group_id', group.groupId);
-    if (deleteErr) return false;
+    if (deleteErr) return { ok: false, error: `Silme hatası: ${deleteErr.message}` };
 
     const date = new Date(group.startDate);
     const endDate = new Date(group.endDate);
@@ -249,15 +387,170 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
     }
 
     const { error: insertErr } = await supabase.from('reservations').insert(rows);
+
     if (insertErr) {
       if (oldRows && oldRows.length > 0) {
         const restoreRows = oldRows.map(({ id, ...rest }) => rest);
         await supabase.from('reservations').insert(restoreRows);
       }
-      return false;
+      return { ok: false, error: `Ekleme hatası: ${insertErr.message}` };
     }
 
-    await loadData();
+    const now = new Date().toISOString();
+    const newRows: DbReservation[] = rows.map((r) => ({
+      id: 0,
+      room_id: r.room_id,
+      customer_id: r.customer_id,
+      date: r.date,
+      status: r.status,
+      group_id: r.group_id,
+      total_price: r.total_price ?? 0,
+      amount_paid: r.amount_paid ?? 0,
+      notes: r.notes ?? null,
+      created_at: now,
+      meal_plan: r.meal_plan ?? 'yemeksiz',
+    }));
+
+    setDbReservations((prev) => [
+      ...prev.filter((r) => r.group_id !== group.groupId),
+      ...newRows,
+    ]);
+
+    refreshCustomersAndRooms();
+
+    return { ok: true };
+  };
+
+  const recoverLostReservations = async (): Promise<boolean> => {
+    if (!supabase) return false;
+    const losses = [
+      { customer_id: 87, name: 'NURETTİN TOPAL', startDate: '2026-07-27', endDate: '2026-07-28', room_id: 1 },
+      { customer_id: 89, name: 'NAZAN YARDIMCI', startDate: '2026-07-27', endDate: '2026-07-28', room_id: 4 },
+      { customer_id: 94, name: 'ERDOĞAN KOBAK', startDate: '2026-07-28', endDate: '2026-07-29', room_id: 5 },
+      { customer_id: 95, name: 'ABDULSAMET SİVRİ', startDate: '2026-07-28', endDate: '2026-07-29', room_id: 6 },
+      { customer_id: 96, name: 'ayşenur oğurlu', startDate: '2026-07-28', endDate: '2026-07-29', room_id: 7 },
+    ];
+
+    for (const entry of losses) {
+      const { data: existing } = await supabase
+        .from('reservations')
+        .select('id')
+        .eq('customer_id', entry.customer_id)
+        .eq('notes', 'KAYIP REZERVASYON - bilgileri güncelleyin')
+        .limit(1);
+
+      if (existing && existing.length > 0) continue;
+
+      const groupId = crypto.randomUUID();
+      const date = new Date(entry.startDate);
+      const endDate = new Date(entry.endDate);
+      const rows: Omit<DbReservation, 'id' | 'created_at'>[] = [];
+
+      while (date <= endDate) {
+        rows.push({
+          room_id: entry.room_id,
+          customer_id: entry.customer_id,
+          date: date.toISOString().slice(0, 10),
+          status: 'reserved',
+          group_id: groupId,
+          total_price: 0,
+          amount_paid: 0,
+          notes: 'KAYIP REZERVASYON - bilgileri güncelleyin',
+          meal_plan: 'yemeksiz',
+        });
+        date.setDate(date.getDate() + 1);
+      }
+
+      const { error } = await supabase.from('reservations').insert(rows);
+      if (error) continue;
+
+      const now = new Date().toISOString();
+      const newRows: DbReservation[] = rows.map((r) => ({
+        id: 0,
+        room_id: r.room_id,
+        customer_id: r.customer_id,
+        date: r.date,
+        status: r.status,
+        group_id: r.group_id,
+        total_price: r.total_price ?? 0,
+        amount_paid: r.amount_paid ?? 0,
+        notes: r.notes ?? null,
+        created_at: now,
+        meal_plan: r.meal_plan ?? 'yemeksiz',
+      }));
+
+      setDbReservations((prev) => [...prev, ...newRows]);
+    }
+
+    refreshCustomersAndRooms();
+    return true;
+  };
+
+  const restoreBackup = async (entry: BackupEntry): Promise<boolean> => {
+    if (!supabase) return false;
+    const r = entry.reservation;
+
+    const { data: existing } = await supabase
+      .from('reservations')
+      .select('id')
+      .eq('group_id', r.groupId)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      await supabase.from('reservations').delete().eq('group_id', r.groupId);
+    }
+
+    const date = new Date(r.startDate);
+    const endDate = new Date(r.endDate);
+    const rows: Omit<DbReservation, 'id' | 'created_at'>[] = [];
+
+    while (date <= endDate) {
+      rows.push({
+        room_id: r.roomId,
+        customer_id: r.guestId,
+        date: date.toISOString().slice(0, 10),
+        status: r.status,
+        group_id: r.groupId,
+        total_price: r.totalPrice,
+        amount_paid: r.amountPaid,
+        notes: r.notes ?? null,
+        meal_plan: mapMealPlanToDb(r.mealPlan),
+      });
+      date.setDate(date.getDate() + 1);
+    }
+
+    const { error } = await supabase.from('reservations').insert(rows);
+    if (error) return false;
+
+    const now = new Date().toISOString();
+    const newRows: DbReservation[] = rows.map((row) => ({
+      id: 0,
+      room_id: row.room_id,
+      customer_id: row.customer_id,
+      date: row.date,
+      status: row.status,
+      group_id: row.group_id,
+      total_price: row.total_price ?? 0,
+      amount_paid: row.amount_paid ?? 0,
+      notes: row.notes ?? null,
+      created_at: now,
+      meal_plan: row.meal_plan ?? 'yemeksiz',
+    }));
+
+    setDbReservations((prev) => [
+      ...prev.filter((x) => x.group_id !== r.groupId),
+      ...newRows,
+    ]);
+
+    refreshCustomersAndRooms();
+    return true;
+  };
+
+  const deleteReservationGroup = async (groupId: string): Promise<boolean> => {
+    if (!supabase) return false;
+    const { error } = await supabase.from('reservations').delete().eq('group_id', groupId);
+    if (error) return false;
+    setDbReservations((prev) => prev.filter((r) => r.group_id !== groupId));
     return true;
   };
 
@@ -271,8 +564,13 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
         selectedReservation,
         openReservation,
         closeReservation,
+        openNewReservation,
+        selectedGroupId,
         addReservationGroup,
         updateReservationGroup,
+        recoverLostReservations,
+        restoreBackup,
+        deleteReservationGroup,
       }}
     >
       {children}

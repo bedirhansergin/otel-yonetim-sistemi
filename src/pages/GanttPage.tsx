@@ -2,63 +2,57 @@
 import { ReservationContext, normalizeTurkish, type ReservationGroup } from '../context/ReservationContext';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 
-const DAY_NAMES = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
 const MONTH_NAMES = [
   'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
   'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
 ];
 
+const DAY_ABBRS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+
 const BLOCK_COLORS = [
-  'from-cyan-500/50 to-cyan-600/40 text-cyan-100 border-cyan-500/40',
-  'from-emerald-500/50 to-emerald-600/40 text-emerald-100 border-emerald-500/40',
-  'from-violet-500/50 to-violet-600/40 text-violet-100 border-violet-500/40',
-  'from-amber-500/50 to-amber-600/40 text-amber-100 border-amber-500/40',
-  'from-rose-500/50 to-rose-600/40 text-rose-100 border-rose-500/40',
-  'from-sky-500/50 to-sky-600/40 text-sky-100 border-sky-500/40',
-  'from-fuchsia-500/50 to-fuchsia-600/40 text-fuchsia-100 border-fuchsia-500/40',
-  'from-lime-500/50 to-lime-600/40 text-lime-100 border-lime-500/40',
+  { bg: '#14532d', border: '#22c55e' },
+  { bg: '#7f1d1d', border: '#ef4444' },
+  { bg: '#1e3a5f', border: '#3b82f6' },
+  { bg: '#78350f', border: '#f59e0b' },
+  { bg: '#134e4a', border: '#14b8a6' },
+  { bg: '#4a1942', border: '#d946ef' },
+  { bg: '#3b3b1a', border: '#eab308' },
+  { bg: '#1e293b', border: '#64748b' },
+  { bg: '#3b1f47', border: '#a855f7' },
+  { bg: '#1a3b2b', border: '#10b981' },
+  { bg: '#4a2820', border: '#f97316' },
+  { bg: '#0f2b3d', border: '#06b6d4' },
 ];
 
-function hashColor(groupId: string): number {
-  let hash = 0;
-  for (let i = 0; i < groupId.length; i++) {
-    hash = groupId.charCodeAt(i) + ((hash << 5) - hash);
+function getMonthInfo(baseDate: Date) {
+  const year = baseDate.getFullYear();
+  const month = baseDate.getMonth();
+  const lastDay = new Date(year, month + 1, 0);
+  const daysInMonth = lastDay.getDate();
+
+  const days: { num: number; abbr: string; dateStr: string }[] = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(year, month, d);
+    days.push({
+      num: d,
+      abbr: DAY_ABBRS[(date.getDay() + 6) % 7],
+      dateStr: date.toISOString().slice(0, 10),
+    });
   }
-  return Math.abs(hash) % BLOCK_COLORS.length;
+
+  return { days, daysInMonth };
 }
 
-function getWeekDates(baseDate: Date): { start: Date; end: Date; days: Date[]; dates: string[] } {
-  const day = baseDate.getDay();
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  const start = new Date(baseDate);
-  start.setDate(baseDate.getDate() + mondayOffset);
-  start.setHours(0, 0, 0, 0);
-
-  const dates: string[] = [];
-  const days: Date[] = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    days.push(d);
-    dates.push(d.toISOString().slice(0, 10));
-  }
-
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  return { start, end, days, dates };
-}
-
-function formatDateRange(start: Date, end: Date): string {
-  const sD = start.getDate();
-  const eD = end.getDate();
-  const sM = start.getMonth();
-  const eM = end.getMonth();
-  const y = start.getFullYear();
-
-  if (sM === eM) {
-    return `${sD} - ${eD} ${MONTH_NAMES[sM]} ${y}`;
-  }
-  return `${sD} ${MONTH_NAMES[sM]} - ${eD} ${MONTH_NAMES[eM]} ${y}`;
+interface GanttBar {
+  groupId: string;
+  guestName: string;
+  mealPlan: string;
+  startDay: number;
+  endDay: number;
+  startDate: string;
+  endDate: string;
+  bg: string;
+  border: string;
 }
 
 export function GanttPage() {
@@ -67,15 +61,21 @@ export function GanttPage() {
   const { rooms, reservations, loading, openReservation } = context;
 
   const today = new Date();
-  const [weekOffset, setWeekOffset] = useState(0);
+  today.setHours(0, 0, 0, 0);
+  const [monthOffset, setMonthOffset] = useState(0);
 
   const baseDate = useMemo(() => {
     const d = new Date(today);
-    d.setDate(d.getDate() + weekOffset * 7);
+    d.setMonth(d.getMonth() + monthOffset);
+    d.setDate(1);
     return d;
-  }, [today, weekOffset]);
+  }, [today, monthOffset]);
 
-  const week = useMemo(() => getWeekDates(baseDate), [baseDate]);
+  const month = useMemo(() => getMonthInfo(baseDate), [baseDate]);
+  const todayStr = useMemo(() => today.toISOString().slice(0, 10), [today]);
+  const currentDay = today.getDate();
+  const currentMonth = today.getMonth();
+  const currentYear = today.getFullYear();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showResults, setShowResults] = useState(false);
@@ -88,23 +88,79 @@ export function GanttPage() {
       .slice(0, 8);
   }, [reservations, searchQuery]);
 
-  const weekReservations = useMemo(() => {
-    const roomMap = new Map<number, ReservationGroup[]>();
-    for (const room of rooms) {
-      roomMap.set(room.id, []);
-    }
+  const checkInOutDays = useMemo(() => {
+    const days = new Set<number>();
     for (const r of reservations) {
-      if (r.dates.some((d) => week.dates.includes(d))) {
-        const list = roomMap.get(r.roomId);
-        if (list) list.push(r);
+      const s = new Date(r.startDate);
+      const e = new Date(r.endDate);
+      if (s.getMonth() === baseDate.getMonth() && s.getFullYear() === baseDate.getFullYear()) {
+        days.add(s.getDate());
+      }
+      const nextDay = new Date(e);
+      nextDay.setDate(nextDay.getDate() + 1);
+      if (nextDay.getMonth() === baseDate.getMonth() && nextDay.getFullYear() === baseDate.getFullYear()) {
+        days.add(nextDay.getDate());
       }
     }
-    return roomMap;
-  }, [rooms, reservations, week.dates]);
+    return days;
+  }, [reservations, baseDate]);
 
-  function getResForDate(roomId: number, dateStr: string): ReservationGroup | undefined {
-    return (weekReservations.get(roomId) ?? []).find((r) => r.dates.includes(dateStr));
-  }
+  const roomBars = useMemo(() => {
+    const map = new Map<number, GanttBar[]>();
+    for (const room of rooms) map.set(room.id, []);
+
+    const allBars: { roomId: number; bar: GanttBar }[] = [];
+    const monthYear = baseDate.getMonth();
+
+    for (const r of reservations) {
+      const s = new Date(r.startDate);
+      const e = new Date(r.endDate);
+
+      if (
+        s.getMonth() === monthYear && s.getFullYear() === baseDate.getFullYear()
+        || e.getMonth() === monthYear && e.getFullYear() === baseDate.getFullYear()
+        || (s <= new Date(baseDate.getFullYear(), monthYear + 1, 0) && e >= new Date(baseDate.getFullYear(), monthYear, 1))
+      ) {
+        const startDay = Math.max(s.getDate(), 1);
+        const endDay = Math.min(
+          e.getDate(),
+          new Date(baseDate.getFullYear(), monthYear + 1, 0).getDate()
+        );
+        if (startDay <= endDay) {
+          allBars.push({
+            roomId: r.roomId,
+            bar: {
+              groupId: r.groupId,
+              guestName: r.guestName,
+              mealPlan: r.mealPlan,
+              startDay,
+              endDay,
+              startDate: r.startDate,
+              endDate: r.endDate,
+              bg: '',
+              border: '',
+            },
+          });
+        }
+      }
+    }
+
+    allBars.sort((a, b) => {
+      if (a.roomId !== b.roomId) return a.roomId - b.roomId;
+      return a.bar.startDay - b.bar.startDay;
+    });
+
+    let ci = 0;
+    for (const { roomId, bar } of allBars) {
+      const c = BLOCK_COLORS[ci % BLOCK_COLORS.length];
+      bar.bg = c.bg;
+      bar.border = c.border;
+      ci++;
+      map.get(roomId)!.push(bar);
+    }
+
+    return map;
+  }, [rooms, reservations, baseDate]);
 
   const handleSearchSelect = (group: ReservationGroup) => {
     openReservation(group.groupId);
@@ -117,21 +173,26 @@ export function GanttPage() {
     [rooms]
   );
 
-  const isCurrentWeek = weekOffset === 0;
+  const isCurrentMonth =
+    monthOffset === 0;
+  const monthYearLabel = `${MONTH_NAMES[baseDate.getMonth()]} ${baseDate.getFullYear()}`;
+  const daysInMonth = month.daysInMonth;
+
+  const isTodayInView =
+    isCurrentMonth ||
+    (baseDate.getMonth() === currentMonth && baseDate.getFullYear() === currentYear);
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-6 shadow-soft">
+      <div className="rounded-3xl border-2 border-slate-600 bg-slate-950/90 p-6 shadow-soft">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Haftalık Çizelge</p>
-            <h2 className="mt-2 text-3xl font-semibold text-white">
-              {formatDateRange(week.start, week.end)}
-            </h2>
+            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Aylık Çizelge</p>
+            <h2 className="mt-2 text-3xl font-semibold text-white">{monthYearLabel}</h2>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-surface px-4 py-3">
+              <div className="flex items-center gap-2 rounded-2xl border-2 border-slate-600 bg-surface px-4 py-3">
                 <Search className="h-5 w-5 text-slate-400" />
                 <input
                   type="text"
@@ -144,41 +205,57 @@ export function GanttPage() {
                 />
               </div>
               {showResults && searchResults.length > 0 && (
-                <div className="absolute right-0 top-full z-40 mt-2 w-72 rounded-2xl border border-white/10 bg-slate-900 shadow-xl">
-                  {searchResults.map((r) => (
+                <div className="absolute right-0 top-full z-40 mt-2 w-80 rounded-2xl border-2 border-slate-600 bg-slate-900 shadow-2xl shadow-black/50 overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-slate-600/50 bg-slate-800/50">
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      {searchResults.length} sonuç
+                    </span>
+                  </div>
+                  {searchResults.map((r, i) => (
                     <button
                       key={r.groupId}
                       type="button"
                       onMouseDown={() => handleSearchSelect(r)}
-                      className="w-full text-left px-4 py-3 text-sm text-slate-200 hover:bg-white/5 first:rounded-t-2xl last:rounded-b-2xl flex items-center justify-between gap-3"
+                      className={`w-full text-left px-4 py-3 transition hover:bg-accent/10 group ${
+                        i < searchResults.length - 1 ? 'border-b border-slate-600/30' : ''
+                      }`}
                     >
-                      <span className="font-medium text-white">{r.guestName}</span>
-                      <span className="text-xs text-slate-400 whitespace-nowrap">
-                        {r.roomNumber} · {r.startDate} → {r.endDate}
-                      </span>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-white group-hover:text-accent transition-colors truncate">
+                            {r.guestName}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {r.startDate} → {r.endDate}
+                          </p>
+                        </div>
+                        <span className="shrink-0 rounded-lg bg-slate-800 px-2.5 py-1 text-xs font-bold text-slate-300 border border-slate-600">
+                          {r.roomNumber}
+                        </span>
+                      </div>
                     </button>
                   ))}
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-surface p-1">
+            <div className="flex items-center gap-1 rounded-2xl border-2 border-slate-600 bg-surface p-1">
               <button
                 type="button"
-                onClick={() => setWeekOffset((o) => o - 1)}
+                onClick={() => setMonthOffset((o) => o - 1)}
                 className="rounded-xl p-2 text-slate-400 hover:bg-white/5 hover:text-white transition"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
               <button
                 type="button"
-                onClick={() => setWeekOffset(0)}
-                className={`rounded-xl px-3 py-2 text-sm font-medium transition ${isCurrentWeek ? 'bg-accent/20 text-accent' : 'text-slate-400 hover:text-white'}`}
+                onClick={() => setMonthOffset(0)}
+                className={`rounded-xl px-3 py-2 text-sm font-medium transition ${isCurrentMonth ? 'bg-accent/20 text-accent' : 'text-slate-400 hover:text-white'}`}
               >
                 Bugün
               </button>
               <button
                 type="button"
-                onClick={() => setWeekOffset((o) => o + 1)}
+                onClick={() => setMonthOffset((o) => o + 1)}
                 className="rounded-xl p-2 text-slate-400 hover:bg-white/5 hover:text-white transition"
               >
                 <ChevronRight className="h-5 w-5" />
@@ -189,82 +266,156 @@ export function GanttPage() {
       </div>
 
       {loading ? (
-        <div className="rounded-3xl border border-white/10 bg-panel/80 p-6 text-center text-slate-400">
+        <div className="rounded-3xl border-2 border-slate-600 bg-panel/90 p-6 text-center text-slate-400">
           Yükleniyor...
         </div>
       ) : (
-        <div className="overflow-hidden rounded-3xl border border-white/10 bg-panel/80 shadow-soft">
-          <div className="grid gap-0" style={{ gridTemplateColumns: `180px repeat(7, 1fr)` }}>
-            <div className="px-5 py-5 border-b border-r border-white/5">
-              <span className="text-sm font-semibold uppercase tracking-wider text-slate-500">Oda</span>
-            </div>
-            {week.days.map((d, i) => {
-              const isToday = d.toDateString() === today.toDateString();
-              return (
-                <div
-                  key={i}
-                  className={`px-3 py-5 border-b border-r border-white/5 text-center last:border-r-0 ${isToday ? 'bg-accent/10' : ''}`}
-                >
-                  <p className={`text-base font-bold ${isToday ? 'text-accent' : 'text-white'}`}>
-                    {d.getDate()}
-                  </p>
-                  <p className={`text-xs mt-0.5 uppercase tracking-wider ${isToday ? 'text-accent/70' : 'text-slate-500'}`}>
-                    {DAY_NAMES[i]}
-                  </p>
+        <div className="overflow-hidden rounded-3xl border-2 border-slate-600 bg-slate-950/90 shadow-soft">
+          <div className="overflow-x-auto">
+            <div style={{ minWidth: '860px' }}>
+              <div className="grid" style={{ gridTemplateColumns: '90px 1fr' }}>
+                <div className="px-3 py-3 border-b-2 border-r-2 border-slate-600 bg-slate-900/80">
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Oda</span>
                 </div>
-              );
-            })}
+                <div className="flex border-b-2 border-slate-500 bg-slate-900/50">
+                  {month.days.map((d) => {
+                    const isToday = isTodayInView && d.num === currentDay;
+                    const isWeekend = d.abbr === 'Cmt' || d.abbr === 'Paz';
+                    return (
+                      <div
+                        key={d.num}
+                        className={`flex-1 flex flex-col items-center justify-center py-2 border-r-2 border-slate-500/70 last:border-r-0 ${
+                          isToday ? 'bg-accent/25 shadow-[inset_0_-2px_0_0] shadow-accent' : isWeekend ? 'bg-slate-800/30' : ''
+                        }`}
+                      >
+                        <span className={`text-[10px] font-semibold uppercase tracking-wide ${isToday ? 'text-accent' : 'text-slate-500'}`}>{d.abbr}</span>
+                        <span className={`text-lg font-extrabold leading-tight mt-0.5 ${isToday ? 'text-accent' : 'text-white'}`}>{d.num}</span>
+                      </div>
+                    );
+                  })}
+                </div>
 
-            {sortedRooms.map((room) => (
-              <div key={room.id} className="contents">
-                <div className="px-5 py-4 border-b border-r border-white/5 flex items-center">
-                  <span className="text-base font-bold text-white">{room.roomNumber}</span>
-                </div>
-                {week.dates.map((dateStr, j) => {
-                  const res = getResForDate(room.id, dateStr);
-                  const isToday = dateStr === today.toISOString().slice(0, 10);
-                  const colorClass = res ? BLOCK_COLORS[hashColor(res.groupId)] : '';
+                {sortedRooms.map((room, ri) => {
+                  const bars = roomBars.get(room.id) ?? [];
+                  const isEven = ri % 2 === 0;
 
                   return (
-                    <div
-                      key={j}
-                      className={`border-b border-r border-white/5 last:border-r-0 ${isToday ? 'bg-accent/[0.03]' : ''}`}
-                    >
-                      {res ? (
-                        <button
-                          type="button"
-                          onClick={() => openReservation(res.groupId)}
-                          className={`w-full h-full min-h-[80px] bg-gradient-to-br border-l-2 ${colorClass} px-3 py-3 text-left transition hover:brightness-110 flex flex-col justify-center`}
-                        >
-                          <span className="text-sm font-bold leading-tight line-clamp-2">
-                            {res.guestName}
-                          </span>
-                          <span className="text-xs mt-1 opacity-70">
-                            {res.mealPlan}
-                          </span>
-                        </button>
-                      ) : (
-                        <div className="w-full h-full min-h-[80px] px-3 py-3 text-left">
-                          <span className="text-xs text-slate-600">Boş</span>
-                        </div>
-                      )}
+                    <div key={room.id} className="contents">
+                      <div
+                        className={`px-3 py-3 border-b-2 border-r-2 border-slate-600 flex items-center ${
+                          isEven ? 'bg-slate-900/30' : 'bg-slate-900/50'
+                        }`}
+                      >
+                        <span className="text-sm font-extrabold text-white tracking-wide">{room.roomNumber}</span>
+                      </div>
+                      <div
+                        className={`relative border-b-2 border-slate-600 ${isEven ? 'bg-slate-800/10' : 'bg-slate-800/5'}`}
+                        style={{ height: '52px' }}
+                      >
+                        {/* Weekend shading */}
+                        {month.days.map((d, i) => {
+                          const isWeekend = d.abbr === 'Cmt' || d.abbr === 'Paz';
+                          if (!isWeekend) return null;
+                          return (
+                            <div
+                              key={`we-${d.num}`}
+                              className="absolute top-0 bottom-0"
+                              style={{
+                                left: `${(i / daysInMonth) * 100}%`,
+                                width: `${(1 / daysInMonth) * 100}%`,
+                                backgroundColor: 'rgba(30,41,59,0.2)',
+                              }}
+                            />
+                          );
+                        })}
+
+                        {/* Check-in/out guide lines - from header to this row */}
+                        {bars.map((bar, bi) => (
+                          <div key={`guide-${bar.groupId}`}>
+                            <div
+                              className="absolute border-r-2 border-amber-400/60 pointer-events-none"
+                              style={{
+                                left: `${((bar.startDay - 1) / daysInMonth) * 100}%`,
+                                top: `-${ri * 54}px`,
+                                height: `${(ri + 1) * 54}px`,
+                              }}
+                            />
+                            <div
+                              className="absolute border-r-2 border-amber-400/60 pointer-events-none"
+                              style={{
+                                left: `${(bar.endDay / daysInMonth) * 100}%`,
+                                top: `-${ri * 54}px`,
+                                height: `${(ri + 1) * 54}px`,
+                              }}
+                            />
+                          </div>
+                        ))}
+
+                        {/* Today marker */}
+                        {isTodayInView && (
+                          <div
+                            className="absolute top-0 bottom-0 w-[2px] bg-accent/70 z-10 rounded-full"
+                            style={{ left: `${((currentDay - 1) / daysInMonth) * 100}%` }}
+                          />
+                        )}
+
+                        {/* Reservation bars */}
+                        {bars.map((bar) => (
+                          <button
+                            key={bar.groupId}
+                            type="button"
+                            onClick={() => openReservation(bar.groupId)}
+                            className="absolute top-0 bottom-0 flex items-center gap-1.5 overflow-hidden hover:brightness-125 transition z-10 font-bold text-sm text-white/95"
+                            style={{
+                              left: `${((bar.startDay - 1) / daysInMonth) * 100}%`,
+                              width: `calc(${((bar.endDay - bar.startDay + 1) / daysInMonth) * 100}% - 2px)`,
+                              backgroundColor: bar.bg,
+                              borderLeft: `4px solid ${bar.border}`,
+                              paddingLeft: '6px',
+                              paddingRight: '6px',
+                            }}
+                            title={`${bar.guestName}\n${bar.startDate} → ${bar.endDate}\n${bar.mealPlan}`}
+                          >
+                            <span className="line-clamp-2 leading-tight">{bar.guestName}</span>
+                            <span className="text-xs opacity-80 truncate hidden sm:inline font-normal">{bar.mealPlan}</span>
+                          </button>
+                        ))}
+
+                        {bars.length === 0 && (
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <span className="text-[11px] text-slate-600">boş</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
               </div>
-            ))}
+            </div>
           </div>
         </div>
       )}
 
-      <div className="flex flex-wrap gap-4 rounded-3xl border border-white/10 bg-slate-950/70 p-5 shadow-soft">
+      <div className="flex flex-wrap gap-4 rounded-3xl border-2 border-slate-600 bg-slate-950/90 p-5 shadow-soft">
         <div className="flex items-center gap-2 text-sm text-slate-400">
-          <div className="h-3 w-3 rounded border border-white/10 bg-white/[0.03]"></div>
+          <div className="h-3 w-3 rounded border-2 border-slate-600" />
           Boş
         </div>
         <div className="flex items-center gap-2 text-sm text-slate-400">
-          <div className="h-3 w-3 rounded bg-gradient-to-br from-cyan-500/50 to-cyan-600/40 border border-cyan-500/40"></div>
-          Rezervasyon
+          <div className="h-3 w-3 rounded" style={{ backgroundColor: '#14532d', borderLeft: '3px solid #22c55e' }} />
+          Dolu
+        </div>
+        <div className="flex items-center gap-2 text-sm text-slate-400">
+          <div className="h-[2px] w-6 rounded-full bg-accent/70" />
+          Bugün
+        </div>
+        <div className="flex items-center gap-2 text-sm text-slate-400">
+          <div className="h-0.5 w-4 bg-amber-400/60 rounded-full" />
+          Giriş / Çıkış
+        </div>
+        <div className="flex items-center gap-2 text-sm text-slate-400">
+          <div className="h-3 w-3 rounded" style={{ backgroundColor: 'rgba(30,41,59,0.2)' }} />
+          Hafta sonu
         </div>
       </div>
     </div>
