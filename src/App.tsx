@@ -1,5 +1,5 @@
 ﻿import { BrowserRouter, NavLink, Route, Routes } from 'react-router-dom';
-import { useContext, useState } from 'react';
+import { useContext, useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ReservationProvider, ReservationContext } from './context/ReservationContext';
 import { HomePage } from './pages/HomePage';
@@ -57,7 +57,7 @@ function MobileMenu({
         <div className="flex items-center justify-between mb-8">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Avşa Berivan Motel</p>
-            <h1 className="mt-2 text-xl font-semibold text-white">Otel Yönetim Sistemi</h1>
+            <h1 className="mt-2 text-xl font-semibold text-white">Bilgi ve Yönetim Sistemi</h1>
           </div>
           <button
             type="button"
@@ -119,6 +119,19 @@ function NewReservationButton() {
 function AuthenticatedApp() {
   const { username, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const dateTimeStr = now.toLocaleDateString('tr-TR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long',
+  }) + ' ' + now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 
   return (
     <ReservationProvider>
@@ -136,8 +149,8 @@ function AuthenticatedApp() {
             <aside className="hidden w-72 flex-col gap-4 rounded-3xl border-2 border-slate-600 bg-panel/90 p-6 shadow-soft md:flex">
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Avşa Berivan Motel</p>
-                <h1 className="mt-3 text-3xl font-semibold text-white">Otel Yönetim Sistemi</h1>
-                <p className="mt-3 text-sm text-slate-300">Apart otelin için uzman bir kontrol paneli.</p>
+                <h1 className="mt-3 text-3xl font-semibold text-white">Avşa Berivan Motel - Bilgi ve Yönetim Sistemi</h1>
+                <p className="mt-3 text-sm text-slate-400">{dateTimeStr}</p>
               </div>
               <nav className="mt-8 flex flex-col gap-2">
                 {navItems.map((item) => (
@@ -199,7 +212,19 @@ function AuthenticatedApp() {
 }
 
 function AppContent() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-600 border-t-accent" />
+          <p className="text-sm text-slate-400">Yükleniyor...</p>
+        </div>
+      </div>
+    );
+  }
+
   return isAuthenticated ? <AuthenticatedApp /> : <LoginPage />;
 }
 

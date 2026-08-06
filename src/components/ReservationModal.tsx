@@ -1,5 +1,5 @@
-﻿import { useContext, useEffect, useRef, useState, type FormEvent } from 'react';
-import { ReservationContext, normalizeTurkish, parseStructuredNotes, buildStructuredNotes, type ReservationGroup, type ExtraGuest } from '../context/ReservationContext';
+﻿import { useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { ReservationContext, normalizeTurkish, parseStructuredNotes, buildStructuredNotes, getLocalDate, type ReservationGroup, type ExtraGuest } from '../context/ReservationContext';
 import { supabase } from '../lib/supabaseClient';
 import { Trash2 } from 'lucide-react';
 
@@ -23,6 +23,7 @@ export function ReservationModal() {
 
   const [formState, setFormState] = useState<ReservationGroup | null>(null);
   const [error, setError] = useState('');
+  const [errorDialog, setErrorDialog] = useState<string | null>(null);
   const [showNewForm, setShowNewForm] = useState(false);
   const [guestSearch, setGuestSearch] = useState('');
   const [suggestions, setSuggestions] = useState<typeof guests>([]);
@@ -31,9 +32,33 @@ export function ReservationModal() {
   const [guestPhone, setGuestPhone] = useState('');
   const [guestIdNumber, setGuestIdNumber] = useState('');
   const [extraGuests, setExtraGuests] = useState<ExtraGuest[]>([]);
+  const [egCounter, setEgCounter] = useState(0);
   const searchRef = useRef<HTMLDivElement>(null);
 
   const isNew = !selectedReservation || showNewForm || selectedGroupId === '__new__';
+
+  const nights = useMemo(() => {
+    if (!formState?.startDate || !formState?.endDate) return 0;
+    const [sy, sm, sd] = formState.startDate.split('-').map(Number);
+    const [ey, em, ed] = formState.endDate.split('-').map(Number);
+    const diff = Date.UTC(ey, em - 1, ed) - Date.UTC(sy, sm - 1, sd);
+    return Math.round(diff / 86400000);
+  }, [formState?.startDate, formState?.endDate]);
+
+  const handleClose = useCallback(() => {
+    setShowNewForm(false);
+    setFormState(null);
+    setGuestSearch('');
+    setGuestPhone('');
+    setGuestIdNumber('');
+    setExtraGuests([]);
+    setEgCounter(0);
+    setError('');
+    setErrorDialog(null);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    closeReservation();
+  }, [closeReservation]);
 
   useEffect(() => {
     if (selectedGroupId === '__new__') {
@@ -42,14 +67,15 @@ export function ReservationModal() {
       setGuestPhone('');
       setGuestIdNumber('');
       setExtraGuests([]);
+      setEgCounter(0);
       setFormState({
         groupId: '',
         roomId: rooms[0]?.id ?? 0,
         roomNumber: rooms[0]?.roomNumber ?? '',
         guestId: 0,
         guestName: '',
-        startDate: new Date().toISOString().slice(0, 10),
-        endDate: new Date().toISOString().slice(0, 10),
+        startDate: getLocalDate(),
+        endDate: getLocalDate(),
         status: 'occupied',
         mealPlan: 'Sadece Oda',
         totalPrice: 0,
@@ -59,7 +85,7 @@ export function ReservationModal() {
       });
       setError('');
     }
-  }, [selectedGroupId, rooms]);
+  }, [selectedGroupId]);
 
   useEffect(() => {
     if (selectedReservation && !showNewForm) {
@@ -69,18 +95,25 @@ export function ReservationModal() {
       const g = guests.find((x) => x.id === selectedReservation.guestId);
       setGuestPhone(g ? (g.phone !== '-' ? g.phone : '') : '');
       setGuestIdNumber(g ? (g.idNumber !== '-' ? g.idNumber : '') : '');
-      setGuestSearch('');
+      setGuestSearch(selectedReservation.guestName);
+      setSuggestions([]);
+      setShowSuggestions(false);
       setError('');
     }
-  }, [selectedReservation]);
+  }, [selectedReservation, guests, showNewForm]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') handleClose();
+      if (e.key !== 'Escape') return;
+      if (errorDialog) {
+        setErrorDialog(null);
+        return;
+      }
+      handleClose();
     }
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [handleClose, errorDialog]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -115,21 +148,8 @@ export function ReservationModal() {
     setShowSuggestions(false);
   };
 
-  const handleClose = () => {
-    setShowNewForm(false);
-    setFormState(null);
-    setGuestSearch('');
-    setGuestPhone('');
-    setGuestIdNumber('');
-    setExtraGuests([]);
-    setError('');
-    setSuggestions([]);
-    setShowSuggestions(false);
-    closeReservation();
-  };
-
-  function checkOverlap(): boolean {
-    if (!formState) return false;
+  function checkOverlap(): { guestName: string; startDate: string; endDate: string } | null {
+    if (!formState) return null;
     const start = formState.startDate;
     const end = formState.endDate;
     const roomId = formState.roomId;
@@ -138,9 +158,11 @@ export function ReservationModal() {
     for (const r of reservations) {
       if (r.roomId !== roomId) continue;
       if (groupId && r.groupId === groupId) continue;
-      if (r.startDate < end && start < r.endDate) return true;
+      if (r.startDate < end && start < r.endDate) {
+        return { guestName: r.guestName, startDate: r.startDate, endDate: r.endDate };
+      }
     }
-    return false;
+    return null;
   }
 
   async function resolveGuestId(name: string, phone: string, idNumber: string): Promise<number | null> {
@@ -161,11 +183,11 @@ export function ReservationModal() {
     return data.id;
   }
 
-  async function updateGuestInfo(guestId: number, phone: string, idNumber: string) {
+  async function updateGuestInfo(guestId: number, name: string, phone: string, idNumber: string) {
     if (!supabase || guestId <= 0) return;
     await supabase
       .from('customers')
-      .update({ phone: phone || '-', id_number: idNumber || '-' })
+      .update({ full_name: name.trim() || undefined, phone: phone || '-', id_number: idNumber || '-' })
       .eq('id', guestId);
   }
 
@@ -176,40 +198,41 @@ export function ReservationModal() {
     if (isNew) {
       const guestName = guestSearch.trim();
       if (!guestName) {
-        setError('Lütfen misafir adını girin.');
+        setErrorDialog('Lütfen misafir adını girin.');
         return;
       }
       if (!formState.roomId) {
-        setError('Lütfen bir oda seçin.');
+        setErrorDialog('Lütfen bir oda seçin.');
         return;
       }
     }
 
     if (formState.startDate > formState.endDate) {
-      setError('Giriş tarihi çıkış tarihinden önce olmalı.');
+      setErrorDialog('Giriş tarihi çıkış tarihinden önce olmalı.');
       return;
     }
 
-    if (checkOverlap()) {
-      setError('Bu oda seçilen tarihlerde doludur. Lütfen farklı bir tarih veya oda seçin.');
+    const conflict = checkOverlap();
+    if (conflict) {
+      setErrorDialog(`${formState.roomNumber} numaralı oda seçilen tarihlerde ${conflict.guestName} tarafından dolu (${conflict.startDate} → ${conflict.endDate}). Lütfen farklı bir tarih veya oda seçin.`);
       return;
     }
 
-    setError('');
+    setErrorDialog(null);
     setSaving(true);
 
     if (isNew && formState.groupId === '') {
       const guestName = guestSearch.trim();
       const guestId = await resolveGuestId(guestName, guestPhone, guestIdNumber);
       if (guestId === null) {
-        setError('Misafir kaydı oluşturulamadı. Lütfen daha sonra tekrar deneyin.');
+        setErrorDialog('Misafir kaydı oluşturulamadı. Lütfen daha sonra tekrar deneyin.');
         setSaving(false);
         return;
       }
-      await updateGuestInfo(guestId, guestPhone, guestIdNumber);
+      await updateGuestInfo(guestId, guestName, guestPhone, guestIdNumber);
 
       const finalNotes = buildStructuredNotes(formState.notes ?? '', formState.mealPlan, extraGuests);
-      const ok = await addReservationGroup({
+      const result = await addReservationGroup({
         roomId: formState.roomId,
         roomNumber: formState.roomNumber,
         guestId,
@@ -222,27 +245,34 @@ export function ReservationModal() {
         amountPaid: formState.amountPaid,
         notes: finalNotes,
       });
-      if (!ok) {
-        setError('Rezervasyon eklenirken bir hata oluştu. Lütfen tekrar deneyin.');
+      if (!result.ok) {
+        setErrorDialog(result.error || 'Rezervasyon veritabanına eklenemedi.');
         setSaving(false);
         return;
       }
-      setShowNewForm(false);
       setSaving(false);
       handleClose();
     } else {
-      await updateGuestInfo(formState.guestId, guestPhone, guestIdNumber);
+      const updatedName = guestSearch.trim();
+      let guestId = formState.guestId;
+      if (updatedName && normalizeTurkish(updatedName) !== normalizeTurkish(formState.guestName)) {
+        const resolvedId = await resolveGuestId(updatedName, guestPhone, guestIdNumber);
+        if (resolvedId !== null) guestId = resolvedId;
+      }
+      await updateGuestInfo(guestId, updatedName, guestPhone, guestIdNumber);
+      const updatedFormState = { ...formState, guestId, guestName: updatedName };
       const result = await updateReservationGroup({
-        ...formState,
+        ...updatedFormState,
         notes: buildStructuredNotes(formState.notes ?? '', formState.mealPlan, extraGuests),
       });
       if (!result.ok) {
-        setError(result.error || 'Güncelleme sırasında bir hata oluştu. Verileriniz korundu.');
+        setErrorDialog(result.error || 'Güncelleme sırasında bir hata oluştu. Verileriniz korundu.');
         setSaving(false);
         return;
       }
       setSaving(false);
-      setError('');
+      setErrorDialog(null);
+      handleClose();
     }
   };
 
@@ -267,13 +297,34 @@ export function ReservationModal() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 px-4 py-6">
+      {errorDialog && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4">
+          <div className="w-full max-w-md rounded-3xl border-2 border-rose-500/40 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-start gap-4">
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-rose-300">Hata</h3>
+                <p className="mt-3 text-sm text-white leading-relaxed">{errorDialog}</p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setErrorDialog(null)}
+                className="rounded-2xl border-2 border-slate-600 bg-white/5 px-5 py-2.5 text-sm text-white transition hover:bg-white/10"
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="w-full max-w-2xl rounded-3xl border-2 border-slate-600 bg-panel p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-2xl font-semibold text-white">
               {isNew ? 'Yeni Rezervasyon' : 'Rezervasyon Düzenle'}
             </h2>
-            <p className="mt-1 text-sm text-slate-400">
+            <p className="mt-1 text-sm text-white/80">
               {isNew
                 ? 'Yeni bir rezervasyon oluşturun.'
                 : `${formState.guestName} · ${formState.roomNumber}`}
@@ -282,7 +333,7 @@ export function ReservationModal() {
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-full border-2 border-slate-600 bg-white/5 px-3 py-2 text-sm text-slate-200 transition hover:bg-white/10"
+            className="rounded-full border-2 border-slate-600 bg-white/5 px-3 py-2 text-sm text-white transition hover:bg-white/10"
           >
             Kapat
           </button>
@@ -303,7 +354,7 @@ export function ReservationModal() {
                   type="text"
                   value={guestSearch}
                   onChange={(e) => handleGuestSearch(e.target.value)}
-                  onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                  onFocus={() => setShowSuggestions(true)}
                   placeholder="Misafir adını yazın..."
                   className="rounded-2xl border-2 border-slate-600 bg-surface px-4 py-3 text-white outline-none transition focus:border-accent/60"
                 />
@@ -314,7 +365,7 @@ export function ReservationModal() {
                         key={g.id}
                         type="button"
                         onClick={() => selectGuest(g)}
-                        className="w-full text-left px-4 py-3 text-sm text-slate-200 hover:bg-white/5 first:rounded-t-xl last:rounded-b-xl"
+                        className="w-full text-left px-4 py-3 text-sm text-white hover:bg-white/5 first:rounded-t-xl last:rounded-b-xl"
                       >
                         {g.fullName}
                       </button>
@@ -348,29 +399,31 @@ export function ReservationModal() {
             </>
           ) : (
             <>
-            <label className="grid gap-2 text-sm text-white">
-              Misafir
-              <select
-                value={formState.guestId}
-                onChange={(e) => {
-                  const g = guests.find((x) => x.id === parseInt(e.target.value));
-                  if (g) {
-                    setFormState((cur) =>
-                      cur ? { ...cur, guestId: g.id, guestName: g.fullName } : null
-                    );
-                    setGuestPhone(g.phone !== '-' ? g.phone : '');
-                    setGuestIdNumber(g.idNumber !== '-' ? g.idNumber : '');
-                  }
-                }}
+            <div ref={searchRef} className="grid gap-2 text-sm text-white relative">
+              <span>Misafir Adı</span>
+              <input
+                type="text"
+                value={guestSearch}
+                onChange={(e) => handleGuestSearch(e.target.value)}
+                onFocus={() => setShowSuggestions(true)}
+                placeholder="Misafir adını yazın..."
                 className="rounded-2xl border-2 border-slate-600 bg-surface px-4 py-3 text-white outline-none transition focus:border-accent/60"
-              >
-                {guests.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.fullName}
-                  </option>
-                ))}
-              </select>
-            </label>
+              />
+              {showSuggestions && (
+                <div className="absolute top-full left-0 right-0 z-40 mt-1 rounded-xl border-2 border-slate-600 bg-slate-900 shadow-xl max-h-48 overflow-y-auto">
+                  {suggestions.map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => selectGuest(g)}
+                      className="w-full text-left px-4 py-3 text-sm text-slate-200 hover:bg-white/5 first:rounded-t-xl last:rounded-b-xl"
+                    >
+                      {g.fullName}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="grid gap-2 text-sm text-white">
                 Telefon
@@ -434,6 +487,20 @@ export function ReservationModal() {
             </label>
           </div>
 
+          {nights > 0 ? (
+            <div className="rounded-2xl border-2 border-accent/30 bg-accent/10 px-4 py-3 text-center">
+              <span className="text-base font-bold text-accent">
+                {nights} Gece
+              </span>
+            </div>
+          ) : (
+            <div className="rounded-2xl border-2 border-slate-600 bg-slate-900/60 px-4 py-3 text-center">
+              <span className="text-sm text-white/70">
+                Giriş ve çıkış tarihlerini seçin
+              </span>
+            </div>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="grid gap-2 text-sm text-white">
               Yemek Planı
@@ -468,8 +535,11 @@ export function ReservationModal() {
               Toplam Ücret (TL)
               <input
                 type="number"
-                value={formState.totalPrice}
+                min="0"
+                value={formState.totalPrice || ''}
+                placeholder="0"
                 onChange={(e) => handleChange('totalPrice', parseFloat(e.target.value) || 0)}
+                onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                 className="rounded-2xl border-2 border-slate-600 bg-surface px-4 py-3 text-white outline-none transition focus:border-accent/60"
               />
             </label>
@@ -477,8 +547,11 @@ export function ReservationModal() {
               Alınan Ücret (TL)
               <input
                 type="number"
-                value={formState.amountPaid}
+                min="0"
+                value={formState.amountPaid || ''}
+                placeholder="0"
                 onChange={(e) => handleChange('amountPaid', parseFloat(e.target.value) || 0)}
+                onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                 className="rounded-2xl border-2 border-slate-600 bg-surface px-4 py-3 text-white outline-none transition focus:border-accent/60"
               />
             </label>
@@ -489,15 +562,18 @@ export function ReservationModal() {
               <span className="text-sm font-semibold text-white">Ek Misafirler</span>
               <button
                 type="button"
-                onClick={() => setExtraGuests([...extraGuests, { name: '', phone: '', tc: '' }])}
-                className="rounded-xl border-2 border-slate-500 bg-slate-800 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-slate-700 hover:border-slate-400 transition"
+                onClick={() => {
+                  setExtraGuests([...extraGuests, { name: '', phone: '', tc: '', _key: egCounter }]);
+                  setEgCounter((c) => c + 1);
+                }}
+                className="rounded-xl border-2 border-slate-500 bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 hover:border-slate-400 transition"
               >
                 + Misafir Ekle
               </button>
             </div>
             {extraGuests.map((eg, i) => (
-              <div key={i} className="grid gap-3 sm:grid-cols-3 mb-3 p-3 rounded-2xl border border-slate-600 bg-slate-900/40">
-                <label className="grid gap-1 text-xs text-slate-400">
+              <div key={eg._key ?? i} className="grid gap-3 sm:grid-cols-3 mb-3 p-3 rounded-2xl border border-slate-600 bg-slate-900/40">
+                <label className="grid gap-1 text-xs text-white/80">
                   İsim
                   <input
                     type="text"
@@ -511,7 +587,7 @@ export function ReservationModal() {
                     className="rounded-xl border border-slate-600 bg-surface px-3 py-2 text-sm text-white outline-none transition focus:border-accent/60"
                   />
                 </label>
-                <label className="grid gap-1 text-xs text-slate-400">
+                <label className="grid gap-1 text-xs text-white/80">
                   Telefon
                   <input
                     type="text"
@@ -525,7 +601,7 @@ export function ReservationModal() {
                     className="rounded-xl border border-slate-600 bg-surface px-3 py-2 text-sm text-white outline-none transition focus:border-accent/60"
                   />
                 </label>
-                <label className="grid gap-1 text-xs text-slate-400">
+                <label className="grid gap-1 text-xs text-white/80">
                   TC Kimlik
                   <input
                     type="text"
@@ -543,14 +619,14 @@ export function ReservationModal() {
                 <button
                   type="button"
                   onClick={() => setExtraGuests(extraGuests.filter((_, j) => j !== i))}
-                  className="sm:col-span-3 text-xs text-rose-400 hover:text-rose-300 transition mt-1 text-right"
+                  className="sm:col-span-3 rounded-xl border-2 border-rose-500/50 bg-rose-600/20 px-4 py-2 text-sm font-semibold text-rose-200 hover:bg-rose-600/30 hover:border-rose-400 transition mt-2 text-center"
                 >
-                  Kaldır
+                  Ek Misafir'i Kaldır
                 </button>
               </div>
             ))}
             {extraGuests.length === 0 && (
-              <p className="text-xs text-slate-600 mb-3">Ek misafir bulunmuyor.</p>
+              <p className="text-xs text-white/70">Ek misafir bulunmuyor.</p>
             )}
           </div>
 
@@ -572,9 +648,14 @@ export function ReservationModal() {
                 onClick={async () => {
                   if (!confirm('Bu rezervasyonu silmek istediğinize emin misiniz?')) return;
                   setSaving(true);
-                  const ok = await deleteReservationGroup(formState!.groupId);
-                  if (ok) handleClose();
-                  else { setError('Silme sırasında bir hata oluştu.'); setSaving(false); }
+                  try {
+                    const ok = await deleteReservationGroup(formState!.groupId);
+                    if (ok) handleClose();
+                    else { setErrorDialog('Silme sırasında bir hata oluştu.'); setSaving(false); }
+                  } catch {
+                    setErrorDialog('Silme sırasında bir hata oluştu.');
+                    setSaving(false);
+                  }
                 }}
                 className="rounded-2xl border-2 border-rose-500/40 bg-rose-500/10 px-5 py-3 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50 flex items-center gap-2"
               >
@@ -589,7 +670,7 @@ export function ReservationModal() {
                 type="button"
                 onClick={handleClose}
                 disabled={saving}
-                className="rounded-2xl border-2 border-slate-600 bg-white/5 px-5 py-3 text-sm text-slate-200 transition hover:bg-white/10 disabled:opacity-50"
+                className="rounded-2xl border-2 border-slate-600 bg-white/5 px-5 py-3 text-sm text-white transition hover:bg-white/10 disabled:opacity-50"
               >
                 İptal
               </button>

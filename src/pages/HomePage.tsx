@@ -1,4 +1,4 @@
-﻿import { ArrowRight, CreditCard, Database, Trash2, Undo2, Users } from 'lucide-react';
+﻿import { ArrowRight, Database, Trash2, Undo2, Users } from 'lucide-react';
 import { useContext, useEffect, useState } from 'react';
 import { ReservationContext, getLocalDate } from '../context/ReservationContext';
 import { getBackups, deleteBackup, clearAllBackups, type BackupEntry } from '../lib/backup';
@@ -8,7 +8,7 @@ export function HomePage() {
   if (!context) return null;
   const { rooms, reservations, openReservation, restoreBackup } = context;
   const [showBackups, setShowBackups] = useState(false);
-  const [backups, setBackups] = useState<BackupEntry[]>([]);
+  const [backups, setBackups] = useState<BackupEntry[]>(() => getBackups());
   const [restoringId, setRestoringId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -25,12 +25,11 @@ export function HomePage() {
   const tomorrowCheckIns = reservations.filter((r) => r.startDate === tomorrowStr);
   const tomorrowCheckOuts = reservations.filter((r) => r.endDate === tomorrowStr);
   const occupiedRoomIds = new Set(allTodayReservations.map((r) => r.roomId));
-  const totalPending = reservations.reduce((sum, r) => sum + (r.totalPrice - r.amountPaid), 0);
   const pendingReservations = reservations.filter((r) => r.amountPaid < r.totalPrice);
 
   const summaryCards = [
-    { label: 'Dolu Odalar', value: occupiedRoomIds.size, icon: 'users' },
-    { label: 'Boş Odalar', value: rooms.length - occupiedRoomIds.size, icon: 'door' },
+    { label: 'Dolu Odalar', value: occupiedRoomIds.size },
+    { label: 'Boş Odalar', value: rooms.length - occupiedRoomIds.size },
   ];
 
   function iconFor(label: string) {
@@ -40,7 +39,7 @@ export function HomePage() {
       case 'Boş Odalar':
         return <ArrowRight className="h-5 w-5" />;
       default:
-        return <CreditCard className="h-5 w-5" />;
+        return <ArrowRight className="h-5 w-5" />;
     }
   }
 
@@ -83,7 +82,7 @@ export function HomePage() {
                     type="button"
                     onClick={() => openReservation(r.groupId)}
                     className={`w-full text-left rounded-xl bg-slate-900/60 hover:bg-slate-800 px-4 py-3 transition ${
-                      i < card.items.slice(0, 10).length - 1 ? 'mb-1.5' : ''
+                      i < Math.min(card.items.length, 10) - 1 ? 'mb-1.5' : ''
                     }`}
                   >
                     <span className="text-sm font-medium text-white">{r.guestName}</span>
@@ -111,7 +110,7 @@ export function HomePage() {
                   type="button"
                   onClick={() => openReservation(r.groupId)}
                   className={`w-full text-left rounded-xl bg-slate-900/60 hover:bg-slate-800 px-4 py-3 transition ${
-                    i < pendingReservations.slice(0, 10).length - 1 ? 'mb-1.5' : ''
+                    i < Math.min(pendingReservations.length, 10) - 1 ? 'mb-1.5' : ''
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -144,7 +143,7 @@ export function HomePage() {
             onClick={() => setShowBackups(!showBackups)}
             className="rounded-2xl border border-slate-600 bg-surface px-4 py-2.5 text-sm text-slate-200 hover:bg-white/5 transition"
           >
-            {showBackups ? 'Gizle' : `Yedekler (${getBackups().length})`}
+            {showBackups ? 'Gizle' : `Yedekler (${backups.length})`}
           </button>
         </div>
 
@@ -158,7 +157,7 @@ export function HomePage() {
                   <span className="text-xs text-slate-500">{backups.length} yedek (son 50)</span>
                   <button
                     type="button"
-                    onClick={() => { clearAllBackups(); setBackups([]); }}
+                    onClick={() => { if (!confirm('Tüm yedekleri silmek istediğinize emin misiniz?')) return; clearAllBackups(); setBackups([]); }}
                     className="rounded-xl px-3 py-1.5 text-xs text-rose-400 hover:bg-rose-500/10 transition"
                   >
                     Tümünü Sil
@@ -179,7 +178,7 @@ export function HomePage() {
                           disabled={restoringId === b.id}
                           onClick={async () => {
                             setRestoringId(b.id);
-                            await restoreBackup(b);
+                            try { await restoreBackup(b); } catch { alert('Geri yükleme başarısız oldu.'); }
                             setRestoringId(null);
                             setBackups(getBackups());
                           }}

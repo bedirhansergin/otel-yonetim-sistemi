@@ -5,7 +5,7 @@ const STORAGE_KEY = 'otel_rezervasyon_yedekleri';
 export interface BackupEntry {
   id: string;
   timestamp: string;
-  operation: 'update_before' | 'create_after';
+  operation: 'update_before' | 'create_after' | 'delete';
   label: string;
   reservation: ReservationGroup;
 }
@@ -21,19 +21,25 @@ export function getBackups(): BackupEntry[] {
 }
 
 export function saveBackup(entry: BackupEntry): void {
-  const backups = getBackups();
-  backups.unshift(entry);
-  if (backups.length > 50) {
-    backups.length = 50;
-  }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(backups));
+  try {
+    const backups = getBackups();
+    backups.unshift(entry);
+    if (backups.length > 50) {
+      backups.length = 50;
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(backups));
+  } catch { /* storage full or unavailable */ }
 }
 
 export function deleteBackup(id: string): void {
-  const backups = getBackups().filter((b) => b.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(backups));
+  try {
+    const backups = getBackups().filter((b) => b.id !== id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(backups));
+  } catch { /* storage unavailable */ }
 }
 
 export function clearAllBackups(): void {
-  localStorage.removeItem(STORAGE_KEY);
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch { /* storage unavailable */ }
 }

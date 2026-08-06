@@ -1,15 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-
-const USERS: Record<string, string> = {
-  bedirhan: 'bedo2544',
-  turgut: 'turgut1412',
-};
+import { supabase } from '../lib/supabaseClient';
+import type { Session } from '@supabase/supabase-js';
 
 interface AuthContextValue {
   isAuthenticated: boolean;
   username: string | null;
-  login: (username: string, password: string) => boolean;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -21,29 +19,55 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [username, setUsername] = useState<string | null>(() => {
-    return localStorage.getItem('otel_auth_user');
-  });
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const isAuthenticated = username !== null;
-
-  const login = useCallback((user: string, pass: string): boolean => {
-    const expectedPass = USERS[user];
-    if (expectedPass && expectedPass === pass) {
-      setUsername(user);
-      localStorage.setItem('otel_auth_user', user);
-      return true;
+  useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
     }
-    return false;
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const logout = useCallback(() => {
-    setUsername(null);
-    localStorage.removeItem('otel_auth_user');
+  const isAuthenticated = session !== null;
+  const username = session?.user?.email ?? null;
+
+  const login = useCallback(async (email: string, password: string) => {
+    if (!supabase) {
+      return { ok: false, error: 'Sunucu bağlantısı kurulamadı.' };
+    }
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      return { ok: false, error: 'E-posta veya şifre hatalı.' };
+    }
+    return { ok: true };
+  }, []);
+
+  const logout = useCallback(async () => {
+    if (!supabase) return;
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Çıkış hatası:', error.message);
+    }
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, username, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, username, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

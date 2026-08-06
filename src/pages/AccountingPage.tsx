@@ -18,10 +18,12 @@ export function AccountingPage() {
     [reservations]
   );
 
+  const formatter = useMemo(() => new Intl.NumberFormat('tr-TR'), []);
+
   const summary = [
-    { label: 'Toplam Ücret', value: new Intl.NumberFormat('tr-TR').format(totals.total) + ' TL' },
-    { label: 'Alınan Ücret', value: new Intl.NumberFormat('tr-TR').format(totals.paid) + ' TL' },
-    { label: 'Kalan Ücret', value: new Intl.NumberFormat('tr-TR').format(totals.pending) + ' TL' },
+    { label: 'Toplam Ücret', value: formatter.format(totals.total) + ' TL' },
+    { label: 'Alınan Ücret', value: formatter.format(totals.paid) + ' TL' },
+    { label: 'Kalan Ücret', value: formatter.format(totals.pending) + ' TL' },
   ];
 
   return (

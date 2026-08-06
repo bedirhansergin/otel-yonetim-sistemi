@@ -36,7 +36,7 @@ function getMonthInfo(baseDate: Date) {
     days.push({
       num: d,
       abbr: DAY_ABBRS[(date.getDay() + 6) % 7],
-      dateStr: date.toISOString().slice(0, 10),
+      dateStr: `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
     });
   }
 
@@ -60,8 +60,11 @@ export function GanttPage() {
   if (!context) return null;
   const { rooms, reservations, loading, openReservation } = context;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
   const [monthOffset, setMonthOffset] = useState(0);
 
   const baseDate = useMemo(() => {
@@ -72,38 +75,19 @@ export function GanttPage() {
   }, [today, monthOffset]);
 
   const month = useMemo(() => getMonthInfo(baseDate), [baseDate]);
-  const todayStr = useMemo(() => today.toISOString().slice(0, 10), [today]);
   const currentDay = today.getDate();
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showResults, setShowResults] = useState(false);
 
   const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    const q = normalizeTurkish(searchQuery).trim();
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return [];
+    const q = normalizeTurkish(trimmed);
     return reservations
       .filter((r) => normalizeTurkish(r.guestName).includes(q))
       .slice(0, 8);
   }, [reservations, searchQuery]);
-
-  const checkInOutDays = useMemo(() => {
-    const days = new Set<number>();
-    for (const r of reservations) {
-      const s = new Date(r.startDate);
-      const e = new Date(r.endDate);
-      if (s.getMonth() === baseDate.getMonth() && s.getFullYear() === baseDate.getFullYear()) {
-        days.add(s.getDate());
-      }
-      const nextDay = new Date(e);
-      nextDay.setDate(nextDay.getDate() + 1);
-      if (nextDay.getMonth() === baseDate.getMonth() && nextDay.getFullYear() === baseDate.getFullYear()) {
-        days.add(nextDay.getDate());
-      }
-    }
-    return days;
-  }, [reservations, baseDate]);
 
   const roomBars = useMemo(() => {
     const map = new Map<number, GanttBar[]>();
@@ -117,15 +101,14 @@ export function GanttPage() {
       const e = new Date(r.endDate);
 
       if (
-        s.getMonth() === monthYear && s.getFullYear() === baseDate.getFullYear()
-        || e.getMonth() === monthYear && e.getFullYear() === baseDate.getFullYear()
-        || (s <= new Date(baseDate.getFullYear(), monthYear + 1, 0) && e >= new Date(baseDate.getFullYear(), monthYear, 1))
+        (s.getMonth() === monthYear && s.getFullYear() === baseDate.getFullYear()) ||
+        (e.getMonth() === monthYear && e.getFullYear() === baseDate.getFullYear()) ||
+        (s <= new Date(baseDate.getFullYear(), monthYear + 1, 0) && e >= new Date(baseDate.getFullYear(), monthYear, 1))
       ) {
-        const startDay = Math.max(s.getDate(), 1);
-        const endDay = Math.min(
-          e.getDate(),
-          new Date(baseDate.getFullYear(), monthYear + 1, 0).getDate()
-        );
+        const monthStart = new Date(baseDate.getFullYear(), monthYear, 1);
+        const monthEnd = new Date(baseDate.getFullYear(), monthYear + 1, 0);
+        const startDay = s < monthStart ? 1 : s.getDate();
+        const endDay = e > monthEnd ? monthEnd.getDate() : e.getDate();
         if (startDay <= endDay) {
           allBars.push({
             roomId: r.roomId,
@@ -156,7 +139,8 @@ export function GanttPage() {
       bar.bg = c.bg;
       bar.border = c.border;
       ci++;
-      map.get(roomId)!.push(bar);
+      const roomList = map.get(roomId);
+      if (roomList) roomList.push(bar);
     }
 
     return map;
@@ -173,14 +157,10 @@ export function GanttPage() {
     [rooms]
   );
 
-  const isCurrentMonth =
-    monthOffset === 0;
+  const isCurrentMonth = monthOffset === 0;
+  const isTodayInView = isCurrentMonth;
   const monthYearLabel = `${MONTH_NAMES[baseDate.getMonth()]} ${baseDate.getFullYear()}`;
   const daysInMonth = month.daysInMonth;
-
-  const isTodayInView =
-    isCurrentMonth ||
-    (baseDate.getMonth() === currentMonth && baseDate.getFullYear() === currentYear);
 
   return (
     <div className="space-y-6">
@@ -200,7 +180,7 @@ export function GanttPage() {
                   value={searchQuery}
                   onChange={(e) => { setSearchQuery(e.target.value); setShowResults(true); }}
                   onFocus={() => setShowResults(true)}
-                  onBlur={() => setTimeout(() => setShowResults(false), 200)}
+                  onBlur={() => setTimeout(() => setShowResults(false), 150)}
                   className="w-48 bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
                 />
               </div>
@@ -270,21 +250,21 @@ export function GanttPage() {
           Yükleniyor...
         </div>
       ) : (
-        <div className="overflow-hidden rounded-3xl border-2 border-slate-600 bg-slate-950/90 shadow-soft">
+        <div className="rounded-3xl border-2 border-slate-600 bg-slate-950/90 shadow-soft">
           <div className="overflow-x-auto">
             <div style={{ minWidth: '860px' }}>
               <div className="grid" style={{ gridTemplateColumns: '90px 1fr' }}>
-                <div className="px-3 py-3 border-b-2 border-r-2 border-slate-600 bg-slate-900/80">
+                <div className="px-3 py-3 border-b-2 border-r-2 border-slate-600 bg-slate-900 sticky top-0 z-20">
                   <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Oda</span>
                 </div>
-                <div className="flex border-b-2 border-slate-500 bg-slate-900/50">
+                <div className="flex border-b-2 border-slate-600 bg-slate-900 sticky top-0 z-20">
                   {month.days.map((d) => {
                     const isToday = isTodayInView && d.num === currentDay;
                     const isWeekend = d.abbr === 'Cmt' || d.abbr === 'Paz';
                     return (
                       <div
                         key={d.num}
-                        className={`flex-1 flex flex-col items-center justify-center py-2 border-r-2 border-slate-500/70 last:border-r-0 ${
+                        className={`flex-1 flex flex-col items-center justify-center py-2 border-r-2 border-slate-600 last:border-r-0 ${
                           isToday ? 'bg-accent/25 shadow-[inset_0_-2px_0_0] shadow-accent' : isWeekend ? 'bg-slate-800/30' : ''
                         }`}
                       >
@@ -329,23 +309,45 @@ export function GanttPage() {
                           );
                         })}
 
+                        {/* Today column highlight */}
+                        {isTodayInView && (
+                          <div
+                            className="absolute top-0 bottom-0 bg-accent/20 pointer-events-none"
+                            style={{
+                              left: `${((currentDay - 1) / daysInMonth) * 100}%`,
+                              width: `${(1 / daysInMonth) * 100}%`,
+                            }}
+                          />
+                        )}
+
+                        {/* Date column dividers */}
+                        {month.days.map((d, i) =>
+                          i < daysInMonth - 1 ? (
+                            <div
+                              key={`col-${d.num}`}
+                              className="absolute top-0 bottom-0 border-r-2 border-slate-600 pointer-events-none"
+                              style={{ left: `${((i + 1) / daysInMonth) * 100}%` }}
+                            />
+                          ) : null
+                        )}
+
                         {/* Check-in/out guide lines - from header to this row */}
-                        {bars.map((bar, bi) => (
+                        {bars.map((bar) => (
                           <div key={`guide-${bar.groupId}`}>
                             <div
                               className="absolute border-r-2 border-amber-400/60 pointer-events-none"
                               style={{
                                 left: `${((bar.startDay - 1) / daysInMonth) * 100}%`,
-                                top: `-${ri * 54}px`,
-                                height: `${(ri + 1) * 54}px`,
+                                top: `-${ri * 52}px`,
+                                height: `${(ri + 1) * 52}px`,
                               }}
                             />
                             <div
                               className="absolute border-r-2 border-amber-400/60 pointer-events-none"
                               style={{
                                 left: `${(bar.endDay / daysInMonth) * 100}%`,
-                                top: `-${ri * 54}px`,
-                                height: `${(ri + 1) * 54}px`,
+                                top: `-${ri * 52}px`,
+                                height: `${(ri + 1) * 52}px`,
                               }}
                             />
                           </div>
@@ -354,7 +356,7 @@ export function GanttPage() {
                         {/* Today marker */}
                         {isTodayInView && (
                           <div
-                            className="absolute top-0 bottom-0 w-[2px] bg-accent/70 z-10 rounded-full"
+                            className="absolute -top-[1px] -bottom-[1px] w-[3px] bg-accent z-20 rounded-full pointer-events-none"
                             style={{ left: `${((currentDay - 1) / daysInMonth) * 100}%` }}
                           />
                         )}
@@ -390,6 +392,25 @@ export function GanttPage() {
                     </div>
                   );
                 })}
+                <div className="px-3 py-3 border-r-2 border-slate-600 bg-slate-900">
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Oda</span>
+                </div>
+                <div className="flex border-t-2 border-slate-600 bg-slate-900">
+                  {month.days.map((d) => {
+                    const isToday = isTodayInView && d.num === currentDay;
+                    return (
+                      <div
+                        key={`ft-${d.num}`}
+                        className={`flex-1 flex flex-col items-center justify-center py-2 border-r-2 border-slate-600 last:border-r-0 ${
+                          isToday ? 'bg-accent/25' : ''
+                        }`}
+                      >
+                        <span className={`text-[10px] font-semibold uppercase tracking-wide ${isToday ? 'text-accent' : 'text-slate-500'}`}>{d.abbr}</span>
+                        <span className={`text-lg font-extrabold leading-tight mt-0.5 ${isToday ? 'text-accent' : 'text-white'}`}>{d.num}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>

@@ -46,12 +46,16 @@ export type DbReservation = {
 
 export async function fetchRooms() {
   if (!supabase) return { data: [] as DbRoom[], error: null };
-  return supabase.from('rooms').select('*').order('room_number', { ascending: true });
+  const { data, error } = await supabase.from('rooms').select('*').order('room_number', { ascending: true });
+  if (error) return { data: [] as DbRoom[], error };
+  return { data: data as DbRoom[], error: null };
 }
 
 export async function fetchCustomers() {
   if (!supabase) return { data: [] as DbCustomer[], error: null };
-  return supabase.from('customers').select('*').order('full_name', { ascending: true });
+  const { data, error } = await supabase.from('customers').select('*').order('full_name', { ascending: true });
+  if (error) return { data: [] as DbCustomer[], error };
+  return { data: data as DbCustomer[], error: null };
 }
 
 export async function fetchReservations() {
@@ -62,19 +66,4 @@ export async function fetchReservations() {
     .order('date', { ascending: true });
   if (error) return { data: [] as DbReservation[], error };
   return { data: data as DbReservation[], error: null };
-}
-
-export async function upsertReservation(row: DbReservation) {
-  if (!supabase) return { data: null, error: null };
-  return supabase.from('reservations').upsert(row, { onConflict: 'id' });
-}
-
-export async function deleteReservationByGroup(groupId: string) {
-  if (!supabase) return { error: null };
-  return supabase.from('reservations').delete().eq('group_id', groupId);
-}
-
-export async function insertReservations(rows: DbReservation[]) {
-  if (!supabase || rows.length === 0) return { error: null };
-  return supabase.from('reservations').insert(rows);
 }
