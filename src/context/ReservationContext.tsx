@@ -126,7 +126,7 @@ function mapMealPlanToDisplay(dbMealPlan: string, notes: string | null): string 
 }
 
 function mapMealPlanToDb(display: string): string {
-  if (display === 'Kahvaltı') return 'kahvalti';
+  if (display === 'Kahvaltı') return 'yemekli';
   if (display === 'Tam Pansiyon') return 'yemekli';
   return 'yemeksiz';
 }
@@ -174,6 +174,15 @@ function groupReservations(
 
 export function getLocalDate(): string {
   const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export function parseDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d, 12, 0, 0);
+}
+
+export function formatDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
@@ -280,15 +289,15 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
   const addReservationGroup = useCallback(async (group: Omit<ReservationGroup, 'groupId' | 'dates'>): Promise<{ ok: boolean; error?: string }> => {
     if (!supabase) return { ok: false, error: 'Veritabanı bağlantısı yok.' };
     const groupId = crypto.randomUUID();
-    const date = new Date(group.startDate);
-    const endDate = new Date(group.endDate);
+    const date = parseDate(group.startDate);
+    const endDate = parseDate(group.endDate);
     const rows: Omit<DbReservation, 'id' | 'created_at'>[] = [];
 
     while (date <= endDate) {
       rows.push({
         room_id: group.roomId,
         customer_id: group.guestId,
-        date: date.toISOString().slice(0, 10),
+        date: formatDate(date),
         status: group.status,
         group_id: groupId,
         total_price: group.totalPrice,
@@ -371,15 +380,15 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
       .eq('group_id', group.groupId);
     if (deleteErr) return { ok: false, error: `Silme hatası: ${deleteErr.message}` };
 
-    const date = new Date(group.startDate);
-    const endDate = new Date(group.endDate);
+    const date = parseDate(group.startDate);
+    const endDate = parseDate(group.endDate);
     const rows: Omit<DbReservation, 'id' | 'created_at'>[] = [];
 
     while (date <= endDate) {
       rows.push({
         room_id: group.roomId,
         customer_id: group.guestId,
-        date: date.toISOString().slice(0, 10),
+        date: formatDate(date),
         status: group.status,
         group_id: group.groupId,
         total_price: group.totalPrice,
@@ -454,15 +463,15 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
       if (existing && existing.length > 0) continue;
 
       const groupId = crypto.randomUUID();
-      const date = new Date(entry.startDate);
-      const endDate = new Date(entry.endDate);
+      const date = parseDate(entry.startDate);
+      const endDate = parseDate(entry.endDate);
       const rows: Omit<DbReservation, 'id' | 'created_at'>[] = [];
 
       while (date <= endDate) {
         rows.push({
           room_id: entry.room_id,
           customer_id: entry.customer_id,
-          date: date.toISOString().slice(0, 10),
+          date: formatDate(date),
           status: 'reserved',
           group_id: groupId,
           total_price: 0,
@@ -513,24 +522,27 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
       if (delErr) return false;
     }
 
-    const date = new Date(r.startDate);
-    const endDate = new Date(r.endDate);
-    const rows: Omit<DbReservation, 'id' | 'created_at'>[] = [];
+    const datesToUse = (r.dates && r.dates.length > 0)
+      ? r.dates
+      : (() => {
+          const d = parseDate(r.startDate);
+          const end = parseDate(r.endDate);
+          const list: string[] = [];
+          while (d <= end) { list.push(formatDate(d)); d.setDate(d.getDate() + 1); }
+          return list;
+        })();
 
-    while (date <= endDate) {
-      rows.push({
-        room_id: r.roomId,
-        customer_id: r.guestId,
-        date: date.toISOString().slice(0, 10),
-        status: r.status,
-        group_id: r.groupId,
-        total_price: r.totalPrice,
-        amount_paid: r.amountPaid,
-        notes: r.notes ?? null,
-        meal_plan: mapMealPlanToDb(r.mealPlan),
-      });
-      date.setDate(date.getDate() + 1);
-    }
+    const rows: Omit<DbReservation, 'id' | 'created_at'>[] = datesToUse.map((d) => ({
+      room_id: r.roomId,
+      customer_id: r.guestId,
+      date: d,
+      status: r.status,
+      group_id: r.groupId,
+      total_price: r.totalPrice,
+      amount_paid: r.amountPaid,
+      notes: r.notes ?? null,
+      meal_plan: mapMealPlanToDb(r.mealPlan),
+    }));
 
     const { error } = await supabase.from('reservations').insert(rows);
     if (error) return false;

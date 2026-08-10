@@ -3,10 +3,10 @@
   theme: {
     extend: {
       colors: {
-        surface: '#070b14',
-        panel: '#0f1420',
+        surface: '#080d1a',
+        panel: '#141a2e',
         accent: '#38bdf8',
-        accentSoft: '#0f172a',
+        accentSoft: '#111827',
         border: '#1e293b',
       },
       borderWidth: {

@@ -8,23 +8,23 @@ export function RoomsPage() {
 
   const today = getLocalDate();
   const occupiedRoomIds = new Set(
-    reservations.filter((r) => r.startDate <= today && r.endDate >= today).map((r) => r.roomId)
+    reservations.filter((r) => r.startDate <= today && r.endDate > today).map((r) => r.roomId)
   );
 
   const roomStatuses = rooms.map((room) => ({
     ...room,
     status: occupiedRoomIds.has(room.id) ? 'Dolu' : 'Boş',
     currentGuest: reservations.find(
-      (r) => r.roomId === room.id && r.startDate <= today && r.endDate >= today
+      (r) => r.roomId === room.id && r.startDate <= today && r.endDate > today
     ),
   }));
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border-2 border-slate-600 bg-slate-950/90 p-6 shadow-soft">
+      <div className="rounded-3xl border-2 border-slate-600 bg-slate-900/95 p-6 shadow-soft">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Odalar</p>
+            <p className="text-sm uppercase tracking-[0.3em] text-slate-300">Odalar</p>
             <h2 className="mt-2 text-3xl font-semibold text-white">Oda Bilgileri ve Durum</h2>
           </div>
           <span className="rounded-3xl bg-slate-900/90 px-4 py-3 text-sm text-slate-300">
@@ -34,18 +34,18 @@ export function RoomsPage() {
       </div>
 
       {loading ? (
-        <div className="rounded-3xl border-2 border-slate-600 bg-panel/90 p-6 text-center text-slate-400">
+        <div className="rounded-3xl border-2 border-slate-600 bg-panel/90 p-6 text-center text-slate-300">
           Yükleniyor...
         </div>
       ) : (
         <div className="overflow-hidden rounded-3xl border-2 border-slate-600 bg-panel/90 p-4 shadow-soft">
           <div className="space-y-4">
             {roomStatuses.map((room) => (
-              <div key={room.id} className="rounded-3xl bg-slate-950/80 p-5">
+              <div key={room.id} className="rounded-3xl bg-slate-900/90 p-5">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
                     <h3 className="text-xl font-semibold text-white">{room.roomNumber}</h3>
-                    <p className="mt-2 text-sm text-slate-400">
+                    <p className="mt-2 text-sm text-slate-300">
                       Kat: {room.floor} · Blok: {room.block ?? '-'} · {room.bedType}
                     </p>
                   </div>

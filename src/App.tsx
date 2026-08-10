@@ -31,7 +31,7 @@ function MobileHeader({ onMenuToggle }: { onMenuToggle: () => void }) {
       </button>
       <div className="text-center">
         <p className="text-sm font-semibold text-white">Berivan Motel</p>
-        <p className="text-xs text-slate-400">Yönetim Paneli</p>
+        <p className="text-xs text-slate-300">Yönetim Paneli</p>
       </div>
       <div className="w-10" />
     </div>
@@ -52,17 +52,17 @@ function MobileMenu({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 md:hidden">
-      <div className="absolute inset-0 bg-slate-950/80" onClick={onClose} />
+      <div className="absolute inset-0 bg-slate-900/90" onClick={onClose} />
       <div className="absolute left-0 top-0 bottom-0 w-72 bg-panel border-r border-slate-600 shadow-2xl flex flex-col p-6">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Avşa Berivan Motel</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-300">Avşa Berivan Motel</p>
             <h1 className="mt-2 text-xl font-semibold text-white">Bilgi ve Yönetim Sistemi</h1>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl p-2 text-slate-400 hover:bg-white/5"
+            className="rounded-xl p-2 text-slate-300 hover:bg-white/5"
           >
             <X className="h-5 w-5" />
           </button>
@@ -83,13 +83,13 @@ function MobileMenu({
             </NavLink>
           ))}
         </nav>
-        <div className="pt-6 border-t border-slate-800">
+        <div className="pt-6 border-t border-slate-700">
           <div className="flex items-center justify-between px-4 py-2">
-            <span className="text-sm text-slate-400">{username}</span>
+            <span className="text-sm text-slate-300">{username}</span>
             <button
               type="button"
               onClick={onLogout}
-              className="rounded-xl p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition"
+              className="rounded-xl p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition"
               title="Çıkış Yap"
             >
               <LogOut className="h-4 w-4" />
@@ -148,9 +148,9 @@ function AuthenticatedApp() {
           <div className="mx-auto flex min-h-screen max-w-[1600px] gap-6 px-4 py-6 md:px-8">
             <aside className="hidden w-72 flex-col gap-4 rounded-3xl border-2 border-slate-600 bg-panel/90 p-6 shadow-soft md:flex">
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Avşa Berivan Motel</p>
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-300">Avşa Berivan Motel</p>
                 <h1 className="mt-3 text-3xl font-semibold text-white">Avşa Berivan Motel - Bilgi ve Yönetim Sistemi</h1>
-                <p className="mt-3 text-sm text-slate-400">{dateTimeStr}</p>
+                <p className="mt-3 text-sm text-slate-300">{dateTimeStr}</p>
               </div>
               <nav className="mt-8 flex flex-col gap-2">
                 {navItems.map((item) => (
@@ -167,13 +167,13 @@ function AuthenticatedApp() {
                   </NavLink>
                 ))}
               </nav>
-              <div className="mt-auto pt-6 border-t-2 border-slate-800">
+              <div className="mt-auto pt-6 border-t-2 border-slate-700">
                 <div className="flex items-center justify-between px-4 py-2">
-                  <span className="text-sm text-slate-400">{username}</span>
+                  <span className="text-sm text-slate-300">{username}</span>
                   <button
                     type="button"
                     onClick={logout}
-                    className="rounded-xl p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                    className="rounded-xl p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition"
                     title="Çıkış Yap"
                   >
                     <LogOut className="h-4 w-4" />
@@ -186,7 +186,7 @@ function AuthenticatedApp() {
               <div className="mb-6 rounded-3xl border-2 border-slate-600 bg-panel/90 p-4 sm:p-6 shadow-soft">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-xs sm:text-sm uppercase tracking-[0.3em] text-slate-400">Genel Bakış</p>
+                    <p className="text-xs sm:text-sm uppercase tracking-[0.3em] text-slate-300">Genel Bakış</p>
                     <h2 className="mt-2 text-xl sm:text-3xl font-semibold text-white">Avşa Berivan Motel Yönetim Paneli</h2>
                   </div>
                   <NewReservationButton />
@@ -219,7 +219,7 @@ function AppContent() {
       <div className="flex min-h-screen items-center justify-center bg-surface">
         <div className="flex flex-col items-center gap-4">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-600 border-t-accent" />
-          <p className="text-sm text-slate-400">Yükleniyor...</p>
+          <p className="text-sm text-slate-300">Yükleniyor...</p>
         </div>
       </div>
     );

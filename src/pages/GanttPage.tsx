@@ -1,5 +1,5 @@
 ﻿import { useContext, useMemo, useState } from 'react';
-import { ReservationContext, normalizeTurkish, type ReservationGroup } from '../context/ReservationContext';
+import { ReservationContext, normalizeTurkish, getLocalDate, type ReservationGroup } from '../context/ReservationContext';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 
 const MONTH_NAMES = [
@@ -95,18 +95,20 @@ export function GanttPage() {
 
     const allBars: { roomId: number; bar: GanttBar }[] = [];
     const monthYear = baseDate.getMonth();
+    const monthStart = new Date(baseDate.getFullYear(), monthYear, 1);
+    const monthEnd = new Date(baseDate.getFullYear(), monthYear + 1, 0);
 
     for (const r of reservations) {
-      const s = new Date(r.startDate);
-      const e = new Date(r.endDate);
+      const [sy, sm, sd] = r.startDate.split('-').map(Number);
+      const [ey, em, ed] = r.endDate.split('-').map(Number);
+      const s = new Date(sy, sm - 1, sd);
+      const e = new Date(ey, em - 1, ed);
 
       if (
         (s.getMonth() === monthYear && s.getFullYear() === baseDate.getFullYear()) ||
         (e.getMonth() === monthYear && e.getFullYear() === baseDate.getFullYear()) ||
-        (s <= new Date(baseDate.getFullYear(), monthYear + 1, 0) && e >= new Date(baseDate.getFullYear(), monthYear, 1))
+        (s <= monthEnd && e >= monthStart)
       ) {
-        const monthStart = new Date(baseDate.getFullYear(), monthYear, 1);
-        const monthEnd = new Date(baseDate.getFullYear(), monthYear + 1, 0);
         const startDay = s < monthStart ? 1 : s.getDate();
         const endDay = e > monthEnd ? monthEnd.getDate() : e.getDate();
         if (startDay <= endDay) {
@@ -157,6 +159,17 @@ export function GanttPage() {
     [rooms]
   );
 
+  const todayStr = useMemo(() => getLocalDate(), []);
+  const emptyRooms = useMemo(() => {
+    const occupiedRoomIds = new Set<number>();
+    for (const r of reservations) {
+      if (r.startDate <= todayStr && r.endDate > todayStr) {
+        occupiedRoomIds.add(r.roomId);
+      }
+    }
+    return rooms.filter((room) => !occupiedRoomIds.has(room.id));
+  }, [rooms, reservations, todayStr]);
+
   const isCurrentMonth = monthOffset === 0;
   const isTodayInView = isCurrentMonth;
   const monthYearLabel = `${MONTH_NAMES[baseDate.getMonth()]} ${baseDate.getFullYear()}`;
@@ -164,16 +177,16 @@ export function GanttPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border-2 border-slate-600 bg-slate-950/90 p-6 shadow-soft">
+      <div className="rounded-3xl border-2 border-slate-600 bg-slate-900/95 p-6 shadow-soft">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Aylık Çizelge</p>
+            <p className="text-sm uppercase tracking-[0.3em] text-slate-300">Aylık Çizelge</p>
             <h2 className="mt-2 text-3xl font-semibold text-white">{monthYearLabel}</h2>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="flex items-center gap-2 rounded-2xl border-2 border-slate-600 bg-surface px-4 py-3">
-                <Search className="h-5 w-5 text-slate-400" />
+              <div className="flex items-center gap-2 rounded-2xl border-2 border-slate-500 bg-slate-800 px-4 py-3 ring-1 ring-slate-500/30">
+                <Search className="h-5 w-5 text-slate-300" />
                 <input
                   type="text"
                   placeholder="Misafir ara..."
@@ -181,13 +194,13 @@ export function GanttPage() {
                   onChange={(e) => { setSearchQuery(e.target.value); setShowResults(true); }}
                   onFocus={() => setShowResults(true)}
                   onBlur={() => setTimeout(() => setShowResults(false), 150)}
-                  className="w-48 bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                  className="w-48 bg-transparent text-sm text-white outline-none placeholder:text-slate-400"
                 />
               </div>
               {showResults && searchResults.length > 0 && (
                 <div className="absolute right-0 top-full z-40 mt-2 w-80 rounded-2xl border-2 border-slate-600 bg-slate-900 shadow-2xl shadow-black/50 overflow-hidden">
                   <div className="px-4 py-2.5 border-b border-slate-600/50 bg-slate-800/50">
-                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
                       {searchResults.length} sonuç
                     </span>
                   </div>
@@ -205,7 +218,7 @@ export function GanttPage() {
                           <p className="text-sm font-bold text-white group-hover:text-accent transition-colors truncate">
                             {r.guestName}
                           </p>
-                          <p className="text-xs text-slate-400 mt-0.5">
+                          <p className="text-xs text-slate-300 mt-0.5">
                             {r.startDate} → {r.endDate}
                           </p>
                         </div>
@@ -222,21 +235,21 @@ export function GanttPage() {
               <button
                 type="button"
                 onClick={() => setMonthOffset((o) => o - 1)}
-                className="rounded-xl p-2 text-slate-400 hover:bg-white/5 hover:text-white transition"
+                className="rounded-xl p-2 text-slate-300 hover:bg-white/5 hover:text-white transition"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
               <button
                 type="button"
                 onClick={() => setMonthOffset(0)}
-                className={`rounded-xl px-3 py-2 text-sm font-medium transition ${isCurrentMonth ? 'bg-accent/20 text-accent' : 'text-slate-400 hover:text-white'}`}
+                className={`rounded-xl px-3 py-2 text-sm font-medium transition ${isCurrentMonth ? 'bg-accent/20 text-accent' : 'text-slate-300 hover:text-white'}`}
               >
                 Bugün
               </button>
               <button
                 type="button"
                 onClick={() => setMonthOffset((o) => o + 1)}
-                className="rounded-xl p-2 text-slate-400 hover:bg-white/5 hover:text-white transition"
+                className="rounded-xl p-2 text-slate-300 hover:bg-white/5 hover:text-white transition"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
@@ -246,16 +259,16 @@ export function GanttPage() {
       </div>
 
       {loading ? (
-        <div className="rounded-3xl border-2 border-slate-600 bg-panel/90 p-6 text-center text-slate-400">
+        <div className="rounded-3xl border-2 border-slate-600 bg-panel/90 p-6 text-center text-slate-300">
           Yükleniyor...
         </div>
       ) : (
-        <div className="rounded-3xl border-2 border-slate-600 bg-slate-950/90 shadow-soft">
+        <div className="rounded-3xl border-2 border-slate-600 bg-slate-900/95 shadow-soft">
           <div className="overflow-x-auto">
             <div style={{ minWidth: '860px' }}>
               <div className="grid" style={{ gridTemplateColumns: '90px 1fr' }}>
                 <div className="px-3 py-3 border-b-2 border-r-2 border-slate-600 bg-slate-900 sticky top-0 z-20">
-                  <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Oda</span>
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-300">Oda</span>
                 </div>
                 <div className="flex border-b-2 border-slate-600 bg-slate-900 sticky top-0 z-20">
                   {month.days.map((d) => {
@@ -268,7 +281,7 @@ export function GanttPage() {
                           isToday ? 'bg-accent/25 shadow-[inset_0_-2px_0_0] shadow-accent' : isWeekend ? 'bg-slate-800/30' : ''
                         }`}
                       >
-                        <span className={`text-[10px] font-semibold uppercase tracking-wide ${isToday ? 'text-accent' : 'text-slate-500'}`}>{d.abbr}</span>
+                        <span className={`text-[10px] font-semibold uppercase tracking-wide ${isToday ? 'text-accent' : 'text-slate-400'}`}>{d.abbr}</span>
                         <span className={`text-lg font-extrabold leading-tight mt-0.5 ${isToday ? 'text-accent' : 'text-white'}`}>{d.num}</span>
                       </div>
                     );
@@ -283,7 +296,7 @@ export function GanttPage() {
                     <div key={room.id} className="contents">
                       <div
                         className={`px-3 py-3 border-b-2 border-r-2 border-slate-600 flex items-center ${
-                          isEven ? 'bg-slate-900/30' : 'bg-slate-900/50'
+                          isEven ? 'bg-slate-800/50' : 'bg-slate-800/70'
                         }`}
                       >
                         <span className="text-sm font-extrabold text-white tracking-wide">{room.roomNumber}</span>
@@ -367,12 +380,15 @@ export function GanttPage() {
                             key={bar.groupId}
                             type="button"
                             onClick={() => openReservation(bar.groupId)}
-                            className="absolute top-0 bottom-0 flex items-center gap-1.5 overflow-hidden hover:brightness-125 transition z-10 font-bold text-sm text-white/95"
+                            className="absolute top-0 bottom-0 flex items-center gap-1.5 overflow-hidden hover:brightness-125 transition z-10 font-bold text-sm text-white/95 shadow-lg"
                             style={{
                               left: `${((bar.startDay - 1) / daysInMonth) * 100}%`,
                               width: `calc(${((bar.endDay - bar.startDay + 1) / daysInMonth) * 100}% - 2px)`,
                               backgroundColor: bar.bg,
                               borderLeft: `4px solid ${bar.border}`,
+                              borderRight: `4px solid ${bar.border}`,
+                              borderTop: `3px solid ${bar.border}`,
+                              borderBottom: `3px solid ${bar.border}`,
                               paddingLeft: '6px',
                               paddingRight: '6px',
                             }}
@@ -385,7 +401,7 @@ export function GanttPage() {
 
                         {bars.length === 0 && (
                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <span className="text-[11px] text-slate-600">boş</span>
+                            <span className="text-[11px] text-slate-500">boş</span>
                           </div>
                         )}
                       </div>
@@ -393,7 +409,7 @@ export function GanttPage() {
                   );
                 })}
                 <div className="px-3 py-3 border-r-2 border-slate-600 bg-slate-900">
-                  <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Oda</span>
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-300">Oda</span>
                 </div>
                 <div className="flex border-t-2 border-slate-600 bg-slate-900">
                   {month.days.map((d) => {
@@ -405,7 +421,7 @@ export function GanttPage() {
                           isToday ? 'bg-accent/25' : ''
                         }`}
                       >
-                        <span className={`text-[10px] font-semibold uppercase tracking-wide ${isToday ? 'text-accent' : 'text-slate-500'}`}>{d.abbr}</span>
+                        <span className={`text-[10px] font-semibold uppercase tracking-wide ${isToday ? 'text-accent' : 'text-slate-400'}`}>{d.abbr}</span>
                         <span className={`text-lg font-extrabold leading-tight mt-0.5 ${isToday ? 'text-accent' : 'text-white'}`}>{d.num}</span>
                       </div>
                     );
@@ -417,27 +433,51 @@ export function GanttPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-4 rounded-3xl border-2 border-slate-600 bg-slate-950/90 p-5 shadow-soft">
-        <div className="flex items-center gap-2 text-sm text-slate-400">
+      <div className="flex flex-wrap gap-4 rounded-3xl border-2 border-slate-600 bg-slate-900/95 p-5 shadow-soft">
+        <div className="flex items-center gap-2 text-sm text-slate-300">
           <div className="h-3 w-3 rounded border-2 border-slate-600" />
           Boş
         </div>
-        <div className="flex items-center gap-2 text-sm text-slate-400">
+        <div className="flex items-center gap-2 text-sm text-slate-300">
           <div className="h-3 w-3 rounded" style={{ backgroundColor: '#14532d', borderLeft: '3px solid #22c55e' }} />
           Dolu
         </div>
-        <div className="flex items-center gap-2 text-sm text-slate-400">
+        <div className="flex items-center gap-2 text-sm text-slate-300">
           <div className="h-[2px] w-6 rounded-full bg-accent/70" />
           Bugün
         </div>
-        <div className="flex items-center gap-2 text-sm text-slate-400">
+        <div className="flex items-center gap-2 text-sm text-slate-300">
           <div className="h-0.5 w-4 bg-amber-400/60 rounded-full" />
           Giriş / Çıkış
         </div>
-        <div className="flex items-center gap-2 text-sm text-slate-400">
+        <div className="flex items-center gap-2 text-sm text-slate-300">
           <div className="h-3 w-3 rounded" style={{ backgroundColor: 'rgba(30,41,59,0.2)' }} />
           Hafta sonu
         </div>
+      </div>
+
+      <div className="rounded-3xl border-2 border-slate-600 bg-slate-900/95 p-6 shadow-soft">
+        <p className="text-sm uppercase tracking-[0.3em] text-slate-300">Boş Odaların Listesi</p>
+        <h2 className="mt-2 text-3xl font-semibold text-white">
+          Bugün ({todayStr.split('-').reverse().join('.')})
+        </h2>
+        {emptyRooms.length === 0 ? (
+          <p className="mt-4 text-slate-400">Bugün tüm odalar dolu.</p>
+        ) : (
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            {emptyRooms
+              .sort((a, b) => a.roomNumber.localeCompare(b.roomNumber))
+              .map((room) => (
+                <div
+                  key={room.id}
+                  className="flex flex-col items-center gap-1 rounded-2xl border-2 border-emerald-500/40 bg-emerald-500/10 px-4 py-3"
+                >
+                  <span className="text-lg font-extrabold text-emerald-400">{room.roomNumber}</span>
+                  <span className="text-[11px] text-slate-400">{room.bedType}</span>
+                </div>
+              ))}
+          </div>
+        )}
       </div>
     </div>
   );

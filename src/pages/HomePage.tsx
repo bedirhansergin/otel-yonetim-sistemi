@@ -16,7 +16,7 @@ export function HomePage() {
   }, [showBackups]);
 
   const today = getLocalDate();
-  const allTodayReservations = reservations.filter((r) => r.startDate <= today && r.endDate >= today);
+  const allTodayReservations = reservations.filter((r) => r.startDate <= today && r.endDate > today);
   const todayCheckIns = reservations.filter((r) => r.startDate === today);
   const todayCheckOuts = reservations.filter((r) => r.endDate === today);
   const tomorrow = new Date();
@@ -47,10 +47,10 @@ export function HomePage() {
     <div className="space-y-6">
       <section className="grid gap-4 sm:grid-cols-2">
         {summaryCards.map((card) => (
-          <article key={card.label} className="rounded-3xl border-2 border-slate-600 bg-slate-950/90 p-6 shadow-soft">
+          <article key={card.label} className="rounded-3xl border-2 border-slate-600 bg-slate-900/95 p-6 shadow-soft">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm text-slate-400">{card.label}</p>
+                <p className="text-sm text-slate-300">{card.label}</p>
                 <p className="mt-3 text-4xl font-semibold text-white">{card.value}</p>
               </div>
               <div className="grid h-12 w-12 place-items-center rounded-3xl bg-accent/10 text-accent">
@@ -68,25 +68,25 @@ export function HomePage() {
           { title: 'Yarın Giriş', items: tomorrowCheckIns, empty: 'Giriş yok' },
           { title: 'Yarın Çıkış', items: tomorrowCheckOuts, empty: 'Çıkış yok' },
         ].map((card) => (
-          <div key={card.title} className="overflow-hidden rounded-3xl border-2 border-slate-600 bg-slate-950/90 shadow-soft">
+          <div key={card.title} className="overflow-hidden rounded-3xl border-2 border-slate-600 bg-slate-900/95 shadow-soft">
             <div className="bg-slate-800 px-5 py-3 border-b-2 border-slate-600">
               <h4 className="text-base font-bold text-white">{card.title}</h4>
             </div>
             <div className="p-2">
               {card.items.length === 0 ? (
-                <p className="rounded-2xl bg-slate-900/50 px-4 py-3 text-sm text-slate-500">{card.empty}</p>
+                <p className="rounded-2xl bg-slate-800/70 px-4 py-3 text-sm text-slate-400">{card.empty}</p>
               ) : (
                 card.items.slice(0, 10).map((r, i) => (
                   <button
                     key={r.groupId}
                     type="button"
                     onClick={() => openReservation(r.groupId)}
-                    className={`w-full text-left rounded-xl bg-slate-900/60 hover:bg-slate-800 px-4 py-3 transition ${
+                    className={`w-full text-left rounded-xl bg-slate-800/80 hover:bg-slate-800 px-4 py-3 transition ${
                       i < Math.min(card.items.length, 10) - 1 ? 'mb-1.5' : ''
                     }`}
                   >
                     <span className="text-sm font-medium text-white">{r.guestName}</span>
-                    <span className="text-sm text-slate-400 ml-2">— {r.roomNumber}</span>
+                    <span className="text-sm text-slate-300 ml-2">— {r.roomNumber}</span>
                   </button>
                 ))
               )}
@@ -96,27 +96,27 @@ export function HomePage() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2 overflow-hidden rounded-3xl border-2 border-slate-600 bg-slate-950/90 shadow-soft">
+        <div className="xl:col-span-2 overflow-hidden rounded-3xl border-2 border-slate-600 bg-slate-900/95 shadow-soft">
           <div className="bg-slate-800 px-5 py-3 border-b-2 border-slate-600">
             <h3 className="text-base font-bold text-white">Bekleyen Tahsilatlar</h3>
           </div>
           <div className="p-2">
             {pendingReservations.length === 0 ? (
-              <p className="rounded-2xl bg-slate-900/50 px-4 py-3 text-sm text-slate-500">Tahsilat bekleyen yok.</p>
+              <p className="rounded-2xl bg-slate-800/70 px-4 py-3 text-sm text-slate-400">Tahsilat bekleyen yok.</p>
             ) : (
               pendingReservations.slice(0, 10).map((r, i) => (
                 <button
                   key={r.groupId}
                   type="button"
                   onClick={() => openReservation(r.groupId)}
-                  className={`w-full text-left rounded-xl bg-slate-900/60 hover:bg-slate-800 px-4 py-3 transition ${
+                  className={`w-full text-left rounded-xl bg-slate-800/80 hover:bg-slate-800 px-4 py-3 transition ${
                     i < Math.min(pendingReservations.length, 10) - 1 ? 'mb-1.5' : ''
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <span>
                       <span className="text-sm font-medium text-white">{r.guestName}</span>
-                      <span className="text-sm text-slate-400 ml-2">— {r.roomNumber}</span>
+                      <span className="text-sm text-slate-300 ml-2">— {r.roomNumber}</span>
                     </span>
                     <span className="text-xs font-semibold text-rose-400">
                       {new Intl.NumberFormat('tr-TR').format(r.totalPrice - r.amountPaid)} TL
@@ -129,13 +129,13 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="rounded-3xl border-2 border-slate-600 bg-slate-950/90 p-6 shadow-soft">
+      <section className="rounded-3xl border-2 border-slate-600 bg-slate-900/95 p-6 shadow-soft">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Database className="h-5 w-5 text-slate-400" />
+            <Database className="h-5 w-5 text-slate-300" />
             <div>
               <h3 className="text-lg font-semibold text-white">Veri Koruma Yedekleri</h3>
-              <p className="text-sm text-slate-400">Her rezervasyon düzenlemesinde otomatik yedek alınır.</p>
+              <p className="text-sm text-slate-300">Her rezervasyon düzenlemesinde otomatik yedek alınır.</p>
             </div>
           </div>
           <button
@@ -150,11 +150,11 @@ export function HomePage() {
         {showBackups && (
           <div className="mt-5">
             {backups.length === 0 ? (
-              <p className="rounded-2xl bg-surface/60 p-4 text-sm text-slate-400">Henüz yedek bulunmuyor. Rezervasyon düzenledikçe otomatik oluşacak.</p>
+              <p className="rounded-2xl bg-surface/60 p-4 text-sm text-slate-300">Henüz yedek bulunmuyor. Rezervasyon düzenledikçe otomatik oluşacak.</p>
             ) : (
               <>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs text-slate-500">{backups.length} yedek (son 50)</span>
+                  <span className="text-xs text-slate-400">{backups.length} yedek (son 50)</span>
                   <button
                     type="button"
                     onClick={() => { if (!confirm('Tüm yedekleri silmek istediğinize emin misiniz?')) return; clearAllBackups(); setBackups([]); }}
@@ -165,10 +165,10 @@ export function HomePage() {
                 </div>
                 <div className="grid gap-2 max-h-80 overflow-y-auto">
                   {backups.map((b) => (
-                    <div key={b.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-surface/60 p-3">
+                    <div key={b.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-700 bg-surface/60 p-3">
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-white truncate">{b.label}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">
+                        <p className="text-xs text-slate-400 mt-0.5">
                           {new Date(b.timestamp).toLocaleString('tr-TR')} · {b.operation === 'update_before' ? 'Düzenleme öncesi' : 'Yeni kayıt'}
                         </p>
                       </div>
@@ -190,7 +190,7 @@ export function HomePage() {
                         <button
                           type="button"
                           onClick={() => { deleteBackup(b.id); setBackups(getBackups()); }}
-                          className="rounded-xl p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                          className="rounded-xl p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition"
                           title="Bu yedeği sil"
                         >
                           <Trash2 className="h-4 w-4" />

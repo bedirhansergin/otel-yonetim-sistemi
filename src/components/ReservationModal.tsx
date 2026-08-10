@@ -208,7 +208,7 @@ export function ReservationModal() {
     }
 
     if (formState.startDate > formState.endDate) {
-      setErrorDialog('Giriş tarihi çıkış tarihinden önce olmalı.');
+      setErrorDialog('Giriş tarihi çıkış tarihinden önce olmalı (en az 1 gece).');
       return;
     }
 
@@ -296,9 +296,9 @@ export function ReservationModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 px-4 py-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/95 px-4 py-6">
       {errorDialog && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/80 px-4">
           <div className="w-full max-w-md rounded-3xl border-2 border-rose-500/40 bg-slate-900 p-6 shadow-2xl">
             <div className="flex items-start gap-4">
               <div className="flex-1">
@@ -501,8 +501,7 @@ export function ReservationModal() {
             </div>
           )}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="grid gap-2 text-sm text-white">
+          <label className="grid gap-2 text-sm text-white">
               Yemek Planı
               <select
                 value={formState.mealPlan}
@@ -516,42 +515,35 @@ export function ReservationModal() {
                 ))}
               </select>
             </label>
-            <label className="grid gap-2 text-sm text-white">
-              Durum
-              <select
-                value={formState.status}
-                onChange={(e) => handleChange('status', e.target.value)}
-                className="rounded-2xl border-2 border-slate-600 bg-surface px-4 py-3 text-white outline-none transition focus:border-accent/60"
-              >
-                <option value="occupied">Dolu</option>
-                <option value="reserved">Rezerve</option>
-                <option value="checked_out">Çıkış Yapıldı</option>
-              </select>
-            </label>
-          </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="grid gap-2 text-sm text-white">
               Toplam Ücret (TL)
               <input
-                type="number"
-                min="0"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={formState.totalPrice || ''}
                 placeholder="0"
-                onChange={(e) => handleChange('totalPrice', parseFloat(e.target.value) || 0)}
-                onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9]/g, '');
+                  handleChange('totalPrice', val === '' ? 0 : parseFloat(val));
+                }}
                 className="rounded-2xl border-2 border-slate-600 bg-surface px-4 py-3 text-white outline-none transition focus:border-accent/60"
               />
             </label>
             <label className="grid gap-2 text-sm text-white">
               Alınan Ücret (TL)
               <input
-                type="number"
-                min="0"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={formState.amountPaid || ''}
                 placeholder="0"
-                onChange={(e) => handleChange('amountPaid', parseFloat(e.target.value) || 0)}
-                onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9]/g, '');
+                  handleChange('amountPaid', val === '' ? 0 : parseFloat(val));
+                }}
                 className="rounded-2xl border-2 border-slate-600 bg-surface px-4 py-3 text-white outline-none transition focus:border-accent/60"
               />
             </label>
@@ -572,7 +564,7 @@ export function ReservationModal() {
               </button>
             </div>
             {extraGuests.map((eg, i) => (
-              <div key={eg._key ?? i} className="grid gap-3 sm:grid-cols-3 mb-3 p-3 rounded-2xl border border-slate-600 bg-slate-900/40">
+              <div key={eg._key ?? i} className="grid gap-3 sm:grid-cols-3 mb-3 p-3 rounded-2xl border border-slate-600 bg-slate-800/60">
                 <label className="grid gap-1 text-xs text-white/80">
                   İsim
                   <input

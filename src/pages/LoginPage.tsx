@@ -28,9 +28,9 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-surface px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400 mb-4">Avşa Berivan Motel</p>
+          <p className="text-xs uppercase tracking-[0.4em] text-slate-300 mb-4">Avşa Berivan Motel</p>
           <h1 className="text-3xl font-semibold text-white">Avşa Berivan Motel - Bilgi ve Yönetim Sistemi</h1>
-          <p className="mt-3 text-sm text-slate-400">Devam etmek için giriş yapın.</p>
+          <p className="mt-3 text-sm text-slate-300">Devam etmek için giriş yapın.</p>
         </div>
 
         <form
