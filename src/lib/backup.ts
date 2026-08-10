@@ -28,18 +28,24 @@ export function saveBackup(entry: BackupEntry): void {
       backups.length = 50;
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(backups));
-  } catch { /* storage full or unavailable */ }
+  } catch {
+    console.warn('Yedek kaydedilemedi: localStorage dolu veya kullanılamaz durumda.');
+  }
 }
 
 export function deleteBackup(id: string): void {
   try {
     const backups = getBackups().filter((b) => b.id !== id);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(backups));
-  } catch { /* storage unavailable */ }
+  } catch {
+    console.warn('Yedek silinemedi: localStorage kullanılamaz durumda.');
+  }
 }
 
 export function clearAllBackups(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
-  } catch { /* storage unavailable */ }
+  } catch {
+    console.warn('Yedekler temizlenemedi: localStorage kullanılamaz durumda.');
+  }
 }

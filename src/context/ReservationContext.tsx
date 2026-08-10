@@ -54,12 +54,13 @@ export interface ReservationContextValue {
   selectedGroupId: string | null;
   addReservationGroup: (group: Omit<ReservationGroup, 'groupId' | 'dates'>) => Promise<{ ok: boolean; error?: string }>;
   updateReservationGroup: (group: ReservationGroup) => Promise<{ ok: boolean; error?: string }>;
-  recoverLostReservations: () => Promise<boolean>;
   restoreBackup: (entry: BackupEntry) => Promise<boolean>;
   deleteReservationGroup: (groupId: string) => Promise<boolean>;
 }
 
 export const ReservationContext = createContext<ReservationContextValue | null>(null);
+
+export const NEW_GROUP_ID = '__new__';
 
 export interface ExtraGuest {
   name: string;
@@ -213,6 +214,10 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
       fetchReservations(),
     ]);
 
+    if (roomsRes.error) console.warn('Oda verisi yüklenirken hata:', roomsRes.error.message);
+    if (guestsRes.error) console.warn('Misafir verisi yüklenirken hata:', guestsRes.error.message);
+    if (reservationsRes.error) console.warn('Rezervasyon verisi yüklenirken hata:', reservationsRes.error.message);
+
     const roomList: Room[] = (roomsRes.data ?? []).map((r: DbRoom) => ({
       id: r.id,
       roomNumber: r.room_number,
@@ -254,7 +259,7 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
 
   const openReservation = (groupId: string) => setSelectedGroupId(groupId);
   const closeReservation = () => setSelectedGroupId(null);
-  const openNewReservation = () => setSelectedGroupId('__new__');
+  const openNewReservation = () => setSelectedGroupId(NEW_GROUP_ID);
 
   const refreshCustomersAndRooms = useCallback(async () => {
     if (!supabase) return;
@@ -405,14 +410,20 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
       if (insertErr) {
         if (oldRows && oldRows.length > 0) {
           const restoreRows = oldRows.map(({ id, ...rest }) => rest);
-          await supabase.from('reservations').insert(restoreRows);
+          const { error: restoreErr } = await supabase.from('reservations').insert(restoreRows);
+          if (restoreErr) console.warn('Rollback başarısız, veri kaybı olabilir:', restoreErr.message);
         }
         return { ok: false, error: `Ekleme hatası: ${insertErr.message}` };
       }
     } catch (e: unknown) {
       if (oldRows && oldRows.length > 0) {
         const restoreRows = oldRows.map(({ id, ...rest }) => rest);
-        try { await supabase.from('reservations').insert(restoreRows); } catch { /* son çare */ }
+        try {
+          const { error: restoreErr } = await supabase.from('reservations').insert(restoreRows);
+          if (restoreErr) console.warn('Rollback başarısız, veri kaybı olabilir:', restoreErr.message);
+        } catch {
+          console.warn('Rollback başarısız, veri kaybı olabilir.');
+        }
       }
       return { ok: false, error: `Beklenmeyen hata: ${e instanceof Error ? e.message : 'bilinmiyor'}` };
     }
@@ -441,71 +452,6 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
 
     return { ok: true };
   }, [refreshCustomersAndRooms, reservations]);
-
-  const recoverLostReservations = async (): Promise<boolean> => {
-    if (!supabase) return false;
-    const losses = [
-      { customer_id: 87, name: 'NURETTİN TOPAL', startDate: '2026-07-27', endDate: '2026-07-28', room_id: 1 },
-      { customer_id: 89, name: 'NAZAN YARDIMCI', startDate: '2026-07-27', endDate: '2026-07-28', room_id: 4 },
-      { customer_id: 94, name: 'ERDOĞAN KOBAK', startDate: '2026-07-28', endDate: '2026-07-29', room_id: 5 },
-      { customer_id: 95, name: 'ABDULSAMET SİVRİ', startDate: '2026-07-28', endDate: '2026-07-29', room_id: 6 },
-      { customer_id: 96, name: 'ayşenur oğurlu', startDate: '2026-07-28', endDate: '2026-07-29', room_id: 7 },
-    ];
-
-    for (const entry of losses) {
-      const { data: existing } = await supabase
-        .from('reservations')
-        .select('id')
-        .eq('customer_id', entry.customer_id)
-        .eq('notes', 'KAYIP REZERVASYON - bilgileri güncelleyin')
-        .limit(1);
-
-      if (existing && existing.length > 0) continue;
-
-      const groupId = crypto.randomUUID();
-      const date = parseDate(entry.startDate);
-      const endDate = parseDate(entry.endDate);
-      const rows: Omit<DbReservation, 'id' | 'created_at'>[] = [];
-
-      while (date <= endDate) {
-        rows.push({
-          room_id: entry.room_id,
-          customer_id: entry.customer_id,
-          date: formatDate(date),
-          status: 'reserved',
-          group_id: groupId,
-          total_price: 0,
-          amount_paid: 0,
-          notes: 'KAYIP REZERVASYON - bilgileri güncelleyin',
-          meal_plan: 'yemeksiz',
-        });
-        date.setDate(date.getDate() + 1);
-      }
-
-      const { error } = await supabase.from('reservations').insert(rows);
-      if (error) continue;
-
-      const now = new Date().toISOString();
-      const newRows: DbReservation[] = rows.map((r) => ({
-        id: 0,
-        room_id: r.room_id,
-        customer_id: r.customer_id,
-        date: r.date,
-        status: r.status,
-        group_id: r.group_id,
-        total_price: r.total_price ?? 0,
-        amount_paid: r.amount_paid ?? 0,
-        notes: r.notes ?? null,
-        created_at: now,
-        meal_plan: r.meal_plan ?? 'yemeksiz',
-      }));
-
-      setDbReservations((prev) => [...prev, ...newRows]);
-    }
-
-    await refreshCustomersAndRooms();
-    return true;
-  };
 
   const restoreBackup = async (entry: BackupEntry): Promise<boolean> => {
     if (!supabase) return false;
@@ -603,7 +549,6 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
         selectedGroupId,
         addReservationGroup,
         updateReservationGroup,
-        recoverLostReservations,
         restoreBackup,
         deleteReservationGroup,
       }}

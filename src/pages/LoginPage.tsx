@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Loader2, LogIn } from 'lucide-react';
+import { ErrorDisplay } from '../components/ErrorDisplay';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -60,11 +61,7 @@ export function LoginPage() {
             />
           </label>
 
-          {error && (
-            <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
-              {error}
-            </div>
-          )}
+          {error && <ErrorDisplay message={error} />}
 
           <button
             type="submit"

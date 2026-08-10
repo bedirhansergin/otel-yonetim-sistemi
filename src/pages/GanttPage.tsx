@@ -1,6 +1,6 @@
-﻿import { useContext, useMemo, useState } from 'react';
+﻿import { useContext, useMemo, useRef, useState } from 'react';
 import { ReservationContext, normalizeTurkish, getLocalDate, type ReservationGroup } from '../context/ReservationContext';
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Search } from 'lucide-react';
 
 const MONTH_NAMES = [
   'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
@@ -64,7 +64,7 @@ export function GanttPage() {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     return d;
-  }, []);
+  }, [loading]);
   const [monthOffset, setMonthOffset] = useState(0);
 
   const baseDate = useMemo(() => {
@@ -79,6 +79,7 @@ export function GanttPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showResults, setShowResults] = useState(false);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const searchResults = useMemo(() => {
     const trimmed = searchQuery.trim();
@@ -159,7 +160,7 @@ export function GanttPage() {
     [rooms]
   );
 
-  const todayStr = useMemo(() => getLocalDate(), []);
+  const todayStr = useMemo(() => getLocalDate(), [loading]);
   const emptyRooms = useMemo(() => {
     const occupiedRoomIds = new Set<number>();
     for (const r of reservations) {
@@ -192,8 +193,16 @@ export function GanttPage() {
                   placeholder="Misafir ara..."
                   value={searchQuery}
                   onChange={(e) => { setSearchQuery(e.target.value); setShowResults(true); }}
-                  onFocus={() => setShowResults(true)}
-                  onBlur={() => setTimeout(() => setShowResults(false), 150)}
+                  onFocus={() => {
+                    if (blurTimeoutRef.current) {
+                      clearTimeout(blurTimeoutRef.current);
+                      blurTimeoutRef.current = null;
+                    }
+                    setShowResults(true);
+                  }}
+                  onBlur={() => {
+                    blurTimeoutRef.current = setTimeout(() => setShowResults(false), 150);
+                  }}
                   className="w-48 bg-transparent text-sm text-white outline-none placeholder:text-slate-400"
                 />
               </div>
@@ -260,7 +269,10 @@ export function GanttPage() {
 
       {loading ? (
         <div className="rounded-3xl border-2 border-slate-600 bg-panel/90 p-6 text-center text-slate-300">
-          Yükleniyor...
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-accent" />
+            <span>Yükleniyor...</span>
+          </div>
         </div>
       ) : (
         <div className="rounded-3xl border-2 border-slate-600 bg-slate-900/95 shadow-soft">

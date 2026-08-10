@@ -1,5 +1,6 @@
 ﻿import { useContext } from 'react';
 import { ReservationContext } from '../context/ReservationContext';
+import { Loader2 } from 'lucide-react';
 
 export function GuestsPage() {
   const context = useContext(ReservationContext);
@@ -22,7 +23,10 @@ export function GuestsPage() {
 
       {loading ? (
         <div className="rounded-3xl border-2 border-slate-600 bg-panel/90 p-6 text-center text-slate-300">
-          Yükleniyor...
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-accent" />
+            <span>Yükleniyor...</span>
+          </div>
         </div>
       ) : (
         <div className="overflow-hidden rounded-3xl border-2 border-slate-600 bg-panel/90 p-4 shadow-soft">

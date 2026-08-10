@@ -1,5 +1,6 @@
 ﻿import { useContext, useMemo } from 'react';
 import { ReservationContext } from '../context/ReservationContext';
+import { Loader2 } from 'lucide-react';
 
 export function AccountingPage() {
   const context = useContext(ReservationContext);
@@ -42,7 +43,10 @@ export function AccountingPage() {
 
       {loading ? (
         <div className="rounded-3xl border-2 border-slate-600 bg-panel/90 p-6 text-center text-slate-300">
-          Yükleniyor...
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-accent" />
+            <span>Yükleniyor...</span>
+          </div>
         </div>
       ) : (
         <>
@@ -62,10 +66,11 @@ export function AccountingPage() {
             <h3 className="text-lg font-semibold text-white mb-4">Bekleyen Tahsilatlar</h3>
             <div className="space-y-3">
               {pendingReservations.map((r) => (
-                <div
+                <button
                   key={r.groupId}
+                  type="button"
                   onClick={() => context.openReservation(r.groupId)}
-                  className="rounded-3xl bg-slate-800/95 p-5 flex items-center justify-between gap-4 cursor-pointer hover:bg-slate-700/95 transition"
+                  className="rounded-3xl bg-slate-800/95 p-5 flex items-center justify-between gap-4 hover:bg-slate-700/95 transition w-full text-left"
                 >
                   <div>
                     <p className="text-white font-medium">{r.guestName}</p>
@@ -75,13 +80,13 @@ export function AccountingPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-rose-300 font-semibold">
-                      Kalan: {new Intl.NumberFormat('tr-TR').format(r.totalPrice - r.amountPaid)} TL
+                      Kalan: {formatter.format(r.totalPrice - r.amountPaid)} TL
                     </p>
                     <p className="text-xs text-slate-300">
-                      Toplam: {new Intl.NumberFormat('tr-TR').format(r.totalPrice)} TL
+                      Toplam: {formatter.format(r.totalPrice)} TL
                     </p>
                   </div>
-                </div>
+                </button>
               ))}
               {pendingReservations.length === 0 && (
                 <p className="text-sm text-slate-300 text-center py-4">

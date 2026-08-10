@@ -1,5 +1,6 @@
 ﻿import { useContext } from 'react';
 import { ReservationContext, getLocalDate } from '../context/ReservationContext';
+import { Loader2 } from 'lucide-react';
 
 export function RoomsPage() {
   const context = useContext(ReservationContext);
@@ -35,12 +36,18 @@ export function RoomsPage() {
 
       {loading ? (
         <div className="rounded-3xl border-2 border-slate-600 bg-panel/90 p-6 text-center text-slate-300">
-          Yükleniyor...
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-accent" />
+            <span>Yükleniyor...</span>
+          </div>
         </div>
       ) : (
         <div className="overflow-hidden rounded-3xl border-2 border-slate-600 bg-panel/90 p-4 shadow-soft">
           <div className="space-y-4">
-            {roomStatuses.map((room) => (
+            {roomStatuses.length === 0 ? (
+              <p className="text-sm text-slate-300 text-center py-8">Henüz kayıtlı oda bulunmamaktadır.</p>
+            ) : (
+              roomStatuses.map((room) => (
               <div key={room.id} className="rounded-3xl bg-slate-900/90 p-5">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
@@ -67,7 +74,7 @@ export function RoomsPage() {
                   </div>
                 </div>
               </div>
-            ))}
+            )))}
           </div>
         </div>
       )}

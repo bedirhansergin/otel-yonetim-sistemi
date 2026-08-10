@@ -1,7 +1,8 @@
 ﻿import { useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { ReservationContext, normalizeTurkish, parseStructuredNotes, buildStructuredNotes, getLocalDate, type ReservationGroup, type ExtraGuest } from '../context/ReservationContext';
+import { ReservationContext, normalizeTurkish, parseStructuredNotes, buildStructuredNotes, getLocalDate, NEW_GROUP_ID, type ReservationGroup, type ExtraGuest } from '../context/ReservationContext';
 import { supabase } from '../lib/supabaseClient';
 import { Trash2 } from 'lucide-react';
+import { ErrorDisplay } from './ErrorDisplay';
 
 const mealOptions = ['Sadece Oda', 'Kahvaltı', 'Tam Pansiyon'];
 
@@ -35,14 +36,14 @@ export function ReservationModal() {
   const [egCounter, setEgCounter] = useState(0);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  const isNew = !selectedReservation || showNewForm || selectedGroupId === '__new__';
+  const isNew = !selectedReservation || showNewForm || selectedGroupId === NEW_GROUP_ID;
 
   const nights = useMemo(() => {
     if (!formState?.startDate || !formState?.endDate) return 0;
     const [sy, sm, sd] = formState.startDate.split('-').map(Number);
     const [ey, em, ed] = formState.endDate.split('-').map(Number);
     const diff = Date.UTC(ey, em - 1, ed) - Date.UTC(sy, sm - 1, sd);
-    return Math.round(diff / 86400000);
+    return Math.round(diff / 86400000) + 1;
   }, [formState?.startDate, formState?.endDate]);
 
   const handleClose = useCallback(() => {
@@ -61,7 +62,7 @@ export function ReservationModal() {
   }, [closeReservation]);
 
   useEffect(() => {
-    if (selectedGroupId === '__new__') {
+    if (selectedGroupId === NEW_GROUP_ID) {
       setShowNewForm(true);
       setGuestSearch('');
       setGuestPhone('');
@@ -185,10 +186,14 @@ export function ReservationModal() {
 
   async function updateGuestInfo(guestId: number, name: string, phone: string, idNumber: string) {
     if (!supabase || guestId <= 0) return;
-    await supabase
-      .from('customers')
-      .update({ full_name: name.trim() || undefined, phone: phone || '-', id_number: idNumber || '-' })
-      .eq('id', guestId);
+    try {
+      await supabase
+        .from('customers')
+        .update({ full_name: name.trim() || undefined, phone: phone || '-', id_number: idNumber || '-' })
+        .eq('id', guestId);
+    } catch {
+      /* misafir güncelleme başarısız olursa kritik değil */
+    }
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -298,25 +303,7 @@ export function ReservationModal() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/95 px-4 py-6">
       {errorDialog && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/80 px-4">
-          <div className="w-full max-w-md rounded-3xl border-2 border-rose-500/40 bg-slate-900 p-6 shadow-2xl">
-            <div className="flex items-start gap-4">
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-rose-300">Hata</h3>
-                <p className="mt-3 text-sm text-white leading-relaxed">{errorDialog}</p>
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setErrorDialog(null)}
-                className="rounded-2xl border-2 border-slate-600 bg-white/5 px-5 py-2.5 text-sm text-white transition hover:bg-white/10"
-              >
-                Kapat
-              </button>
-            </div>
-          </div>
-        </div>
+        <ErrorDisplay message={errorDialog} variant="modal" onClose={() => setErrorDialog(null)} />
       )}
       <div className="w-full max-w-2xl rounded-3xl border-2 border-slate-600 bg-panel p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-start justify-between gap-4">
@@ -340,8 +327,8 @@ export function ReservationModal() {
         </div>
 
         {error ? (
-          <div className="mt-5 rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
-            {error}
+          <div className="mt-5">
+            <ErrorDisplay message={error} />
           </div>
         ) : null}
 
@@ -638,10 +625,11 @@ export function ReservationModal() {
                 type="button"
                 disabled={saving}
                 onClick={async () => {
+                  if (!formState) return;
                   if (!confirm('Bu rezervasyonu silmek istediğinize emin misiniz?')) return;
                   setSaving(true);
                   try {
-                    const ok = await deleteReservationGroup(formState!.groupId);
+                    const ok = await deleteReservationGroup(formState.groupId);
                     if (ok) handleClose();
                     else { setErrorDialog('Silme sırasında bir hata oluştu.'); setSaving(false); }
                   } catch {

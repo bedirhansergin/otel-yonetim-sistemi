@@ -31,6 +31,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
+    }).catch(() => {
+      setLoading(false);
     });
 
     const {
@@ -62,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!supabase) return;
     const { error } = await supabase.auth.signOut();
     if (error) {
-      console.error('Çıkış hatası:', error.message);
+      setSession(null);
     }
   }, []);
 
