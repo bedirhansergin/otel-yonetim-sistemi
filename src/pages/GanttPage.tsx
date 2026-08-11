@@ -104,6 +104,7 @@ export function GanttPage() {
       const [ey, em, ed] = r.endDate.split('-').map(Number);
       const s = new Date(sy, sm - 1, sd);
       const e = new Date(ey, em - 1, ed);
+      e.setDate(e.getDate() - 1);
 
       if (
         (s.getMonth() === monthYear && s.getFullYear() === baseDate.getFullYear()) ||
