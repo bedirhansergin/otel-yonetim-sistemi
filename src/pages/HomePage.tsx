@@ -1,4 +1,4 @@
-﻿import { ArrowRight, Users } from 'lucide-react';
+﻿import { ArrowRight, ArrowDownRight, ArrowUpRight, CalendarArrowDown, CalendarArrowUp, Clock, Users } from 'lucide-react';
 import { useContext, useMemo } from 'react';
 import { ReservationContext, getLocalDate } from '../context/ReservationContext';
 
@@ -40,7 +40,7 @@ export function HomePage() {
     <div className="space-y-6">
       <section className="grid gap-4 sm:grid-cols-2">
         {summaryCards.map((card) => (
-          <article key={card.label} className="rounded-3xl border-2 border-slate-600 bg-slate-900/95 p-6 shadow-soft">
+          <article key={card.label} className="rounded-3xl border-2 border-slate-500/60 bg-slate-900/95 p-6 shadow-soft">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm text-slate-300">{card.label}</p>
@@ -56,18 +56,19 @@ export function HomePage() {
 
       <section className="grid gap-4 sm:grid-cols-2">
         {[
-          { title: 'Bugün Giriş', items: todayCheckIns, empty: 'Giriş yok' },
-          { title: 'Bugün Çıkış', items: todayCheckOuts, empty: 'Çıkış yok' },
-          { title: 'Yarın Giriş', items: tomorrowCheckIns, empty: 'Giriş yok' },
-          { title: 'Yarın Çıkış', items: tomorrowCheckOuts, empty: 'Çıkış yok' },
+          { title: 'Bugün Giriş', items: todayCheckIns, empty: 'Giriş yok', icon: <ArrowDownRight className="h-4 w-4 text-emerald-400/80" /> },
+          { title: 'Bugün Çıkış', items: todayCheckOuts, empty: 'Çıkış yok', icon: <ArrowUpRight className="h-4 w-4 text-rose-400/80" /> },
+          { title: 'Yarın Giriş', items: tomorrowCheckIns, empty: 'Giriş yok', icon: <CalendarArrowDown className="h-4 w-4 text-emerald-400/80" /> },
+          { title: 'Yarın Çıkış', items: tomorrowCheckOuts, empty: 'Çıkış yok', icon: <CalendarArrowUp className="h-4 w-4 text-rose-400/80" /> },
         ].map((card) => (
-          <div key={card.title} className="overflow-hidden rounded-3xl border-2 border-slate-600 bg-slate-900/95 shadow-soft">
-            <div className="bg-slate-800 px-5 py-3 border-b-2 border-slate-600">
+          <div key={card.title} className="overflow-hidden rounded-3xl border-2 border-slate-500/60 bg-slate-900/95 shadow-soft">
+            <div className="bg-slate-800 px-5 py-3 border-b-2 border-slate-500/60 flex items-center gap-2.5">
+              {card.icon}
               <h4 className="text-base font-bold text-white">{card.title}</h4>
             </div>
             <div className="p-2">
               {card.items.length === 0 ? (
-                <p className="rounded-2xl bg-slate-800/70 px-4 py-3 text-sm text-slate-400">{card.empty}</p>
+                <p className="rounded-2xl bg-black/70 px-4 py-3 text-sm text-slate-400 border border-slate-600/30">{card.empty}</p>
               ) : (
                 <>
                   {card.items.slice(0, 10).map((r, i) => (
@@ -75,7 +76,7 @@ export function HomePage() {
                       key={r.groupId}
                       type="button"
                       onClick={() => openReservation(r.groupId)}
-                      className={`w-full text-left rounded-xl bg-slate-800/80 hover:bg-slate-800 px-4 py-3 transition ${
+                      className={`w-full text-left rounded-xl bg-black/90 hover:bg-gray-900 border border-slate-600/40 hover:border-slate-500/60 px-4 py-3 transition-all ${
                         i < Math.min(card.items.length, 10) - 1 ? 'mb-1.5' : ''
                       }`}
                     >
@@ -96,13 +97,14 @@ export function HomePage() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2 overflow-hidden rounded-3xl border-2 border-slate-600 bg-slate-900/95 shadow-soft">
-          <div className="bg-slate-800 px-5 py-3 border-b-2 border-slate-600">
+        <div className="xl:col-span-2 overflow-hidden rounded-3xl border-2 border-slate-500/60 bg-slate-900/95 shadow-soft">
+          <div className="bg-slate-800 px-5 py-3 border-b-2 border-slate-500/60 flex items-center gap-2.5">
+            <Clock className="h-4 w-4 text-amber-400/80" />
             <h3 className="text-base font-bold text-white">Bekleyen Tahsilatlar</h3>
           </div>
           <div className="p-2">
             {pendingReservations.length === 0 ? (
-              <p className="rounded-2xl bg-slate-800/70 px-4 py-3 text-sm text-slate-400">Tahsilat bekleyen yok.</p>
+              <p className="rounded-2xl bg-black/70 px-4 py-3 text-sm text-slate-400 border border-slate-600/30">Tahsilat bekleyen yok.</p>
             ) : (
               <>
                 {pendingReservations.slice(0, 10).map((r, i) => (
@@ -110,7 +112,7 @@ export function HomePage() {
                     key={r.groupId}
                     type="button"
                     onClick={() => openReservation(r.groupId)}
-                    className={`w-full text-left rounded-xl bg-slate-800/80 hover:bg-slate-800 px-4 py-3 transition ${
+                    className={`w-full text-left rounded-xl bg-black/90 hover:bg-gray-900 border border-slate-600/40 hover:border-slate-500/60 px-4 py-3 transition-all ${
                       i < Math.min(pendingReservations.length, 10) - 1 ? 'mb-1.5' : ''
                     }`}
                   >

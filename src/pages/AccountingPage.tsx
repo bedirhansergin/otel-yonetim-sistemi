@@ -1,6 +1,6 @@
 ﻿import { useContext, useMemo } from 'react';
 import { ReservationContext } from '../context/ReservationContext';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Clock, PiggyBank, TrendingUp } from 'lucide-react';
 
 export function AccountingPage() {
   const context = useContext(ReservationContext);
@@ -29,7 +29,7 @@ export function AccountingPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border-2 border-slate-600 bg-slate-900/95 p-6 shadow-soft">
+      <div className="rounded-3xl border-2 border-slate-500/60 bg-slate-900/95 p-6 shadow-soft">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-slate-300">Muhasebe Panosu</p>
@@ -42,7 +42,7 @@ export function AccountingPage() {
       </div>
 
       {loading ? (
-        <div className="rounded-3xl border-2 border-slate-600 bg-panel/90 p-6 text-center text-slate-300">
+        <div className="rounded-3xl border-2 border-slate-500/60 bg-panel/90 p-6 text-center text-slate-300">
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-accent" />
             <span>Yükleniyor...</span>
@@ -54,23 +54,31 @@ export function AccountingPage() {
             {summary.map((item) => (
               <article
                 key={item.label}
-                className="rounded-3xl border-2 border-slate-600 bg-slate-900/95 p-6 shadow-soft"
+                className="rounded-3xl border-2 border-slate-500/60 bg-slate-900/95 p-6 shadow-soft"
               >
-                <p className="text-sm text-slate-300">{item.label}</p>
+                <div className="flex items-center gap-2.5 mb-1">
+                  {item.label === 'Toplam Ücret' && <PiggyBank className="h-4 w-4 text-sky-400/80" />}
+                  {item.label === 'Alınan Ücret' && <TrendingUp className="h-4 w-4 text-emerald-400/80" />}
+                  {item.label === 'Kalan Ücret' && <Clock className="h-4 w-4 text-amber-400/80" />}
+                  <p className="text-sm text-slate-300">{item.label}</p>
+                </div>
                 <p className="mt-4 text-3xl font-semibold text-white">{item.value}</p>
               </article>
             ))}
           </div>
 
-          <div className="rounded-3xl border-2 border-slate-600 bg-panel/90 p-6 shadow-soft">
-            <h3 className="text-lg font-semibold text-white mb-4">Bekleyen Tahsilatlar</h3>
-            <div className="space-y-3">
+          <div className="overflow-hidden rounded-3xl border-2 border-slate-500/60 bg-panel/90 shadow-soft">
+            <div className="bg-slate-800 px-5 py-3 border-b-2 border-slate-500/60 flex items-center gap-2.5">
+              <Clock className="h-4 w-4 text-amber-400/80" />
+              <h3 className="text-lg font-semibold text-white">Bekleyen Tahsilatlar</h3>
+            </div>
+            <div className="p-4 space-y-3">
               {pendingReservations.map((r) => (
                 <button
                   key={r.groupId}
                   type="button"
                   onClick={() => context.openReservation(r.groupId)}
-                  className="rounded-3xl bg-slate-800/95 p-5 flex items-center justify-between gap-4 hover:bg-slate-700/95 transition w-full text-left"
+                  className="rounded-3xl bg-black/90 hover:bg-gray-900 border border-slate-600/40 hover:border-slate-500/60 p-5 flex items-center justify-between gap-4 transition-all w-full text-left"
                 >
                   <div>
                     <p className="text-white font-medium">{r.guestName}</p>
