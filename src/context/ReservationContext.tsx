@@ -299,10 +299,7 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void (async () => {
-      await cleanupOldReservations();
-      await loadData();
-    })();
+    void loadData();
   }, [loadData]);
 
   const roomsMap = useMemo(() => new Map(rooms.map((r) => [r.id, r])), [rooms]);

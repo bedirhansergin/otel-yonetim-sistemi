@@ -1,5 +1,5 @@
 ﻿import { useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { ReservationContext, normalizeTurkish, parseStructuredNotes, buildStructuredNotes, getLocalDate, NEW_GROUP_ID, type ReservationGroup, type ExtraGuest } from '../context/ReservationContext';
+import { ReservationContext, normalizeTurkish, parseStructuredNotes, buildStructuredNotes, getLocalDate, formatDate, parseDate, NEW_GROUP_ID, type ReservationGroup, type ExtraGuest } from '../context/ReservationContext';
 import { supabase } from '../lib/supabaseClient';
 import { Trash2 } from 'lucide-react';
 import { ErrorDisplay } from './ErrorDisplay';
@@ -159,11 +159,50 @@ export function ReservationModal() {
     for (const r of reservations) {
       if (r.roomId !== roomId) continue;
       if (groupId && r.groupId === groupId) continue;
-      if (r.startDate < end && start < r.endDate) {
-        return { guestName: r.guestName, startDate: r.startDate, endDate: r.endDate };
+      for (const d of r.dates) {
+        if (d >= start && d < end) {
+          return { guestName: r.guestName, startDate: r.startDate, endDate: r.endDate };
+        }
       }
     }
     return null;
+  }
+
+  async function tryResolveCheckoutConflicts(roomId: number, start: string, end: string): Promise<boolean> {
+    if (!supabase) return false;
+
+    const dates: string[] = [];
+    const d = parseDate(start);
+    const e = parseDate(end);
+    while (d < e) {
+      dates.push(formatDate(d));
+      d.setDate(d.getDate() + 1);
+    }
+
+    const { data: conflicts } = await supabase
+      .from('reservations')
+      .select('id, group_id, date')
+      .eq('room_id', roomId)
+      .in('date', dates);
+
+    if (!conflicts || conflicts.length === 0) return true;
+
+    for (const c of conflicts) {
+      const { data: groupLast } = await supabase
+        .from('reservations')
+        .select('date')
+        .eq('group_id', c.group_id)
+        .order('date', { ascending: false })
+        .limit(1);
+
+      if (groupLast && groupLast.length > 0 && groupLast[0].date === c.date) {
+        await supabase.from('reservations').delete().eq('id', c.id);
+      } else {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   async function resolveGuestId(name: string, phone: string, idNumber: string): Promise<number | null> {
@@ -219,8 +258,11 @@ export function ReservationModal() {
 
     const conflict = checkOverlap();
     if (conflict) {
-      setErrorDialog(`${formState.roomNumber} numaralı oda seçilen tarihlerde ${conflict.guestName} tarafından dolu (${conflict.startDate} → ${conflict.endDate}). Lütfen farklı bir tarih veya oda seçin.`);
-      return;
+      const resolved = await tryResolveCheckoutConflicts(formState.roomId, formState.startDate, formState.endDate);
+      if (!resolved) {
+        setErrorDialog(`${formState.roomNumber} numaralı oda seçilen tarihlerde ${conflict.guestName} tarafından dolu (${conflict.startDate} → ${conflict.endDate}). Lütfen farklı bir tarih veya oda seçin.`);
+        return;
+      }
     }
 
     setErrorDialog(null);
