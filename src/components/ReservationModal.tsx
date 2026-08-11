@@ -43,7 +43,7 @@ export function ReservationModal() {
     const [sy, sm, sd] = formState.startDate.split('-').map(Number);
     const [ey, em, ed] = formState.endDate.split('-').map(Number);
     const diff = Date.UTC(ey, em - 1, ed) - Date.UTC(sy, sm - 1, sd);
-    return Math.round(diff / 86400000) + 1;
+    return Math.round(diff / 86400000);
   }, [formState?.startDate, formState?.endDate]);
 
   const handleClose = useCallback(() => {

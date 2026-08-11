@@ -298,7 +298,7 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
     const endDate = parseDate(group.endDate);
     const rows: Omit<DbReservation, 'id' | 'created_at'>[] = [];
 
-    while (date <= endDate) {
+    while (date < endDate) {
       rows.push({
         room_id: group.roomId,
         customer_id: group.guestId,
@@ -389,7 +389,7 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
     const endDate = parseDate(group.endDate);
     const rows: Omit<DbReservation, 'id' | 'created_at'>[] = [];
 
-    while (date <= endDate) {
+    while (date < endDate) {
       rows.push({
         room_id: group.roomId,
         customer_id: group.guestId,
@@ -474,7 +474,7 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
           const d = parseDate(r.startDate);
           const end = parseDate(r.endDate);
           const list: string[] = [];
-          while (d <= end) { list.push(formatDate(d)); d.setDate(d.getDate() + 1); }
+          while (d < end) { list.push(formatDate(d)); d.setDate(d.getDate() + 1); }
           return list;
         })();
 
