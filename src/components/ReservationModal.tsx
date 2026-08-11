@@ -212,7 +212,7 @@ export function ReservationModal() {
       }
     }
 
-    if (formState.startDate > formState.endDate) {
+    if (formState.startDate >= formState.endDate) {
       setErrorDialog('Giriş tarihi çıkış tarihinden önce olmalı (en az 1 gece).');
       return;
     }

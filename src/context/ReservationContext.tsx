@@ -153,6 +153,9 @@ function groupReservations(
     const room = roomsMap.get(first.room_id);
     const guest = guestsMap.get(first.customer_id);
 
+    const lastPlusOne = new Date(last.date);
+    lastPlusOne.setDate(lastPlusOne.getDate() + 1);
+
     groups.push({
       groupId,
       roomId: first.room_id,
@@ -160,7 +163,7 @@ function groupReservations(
       guestId: first.customer_id,
       guestName: guest?.fullName ?? `#${first.customer_id}`,
       startDate: first.date,
-      endDate: last.date,
+      endDate: formatDate(lastPlusOne),
       status: first.status,
       mealPlan: mapMealPlanToDisplay(first.meal_plan, first.notes),
       totalPrice: first.total_price,
@@ -185,6 +188,61 @@ export function parseDate(dateStr: string): Date {
 
 export function formatDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function addDays(date: Date, days: number): Date {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+const CLEANUP_KEY = 'checkout_day_cleanup_v1';
+
+async function cleanupOldReservations() {
+  if (!supabase) return;
+  if (localStorage.getItem(CLEANUP_KEY)) return;
+
+  const { data: allRows } = await supabase
+    .from('reservations')
+    .select('id, group_id, date')
+    .order('date', { ascending: true });
+
+  if (!allRows || allRows.length === 0) {
+    localStorage.setItem(CLEANUP_KEY, 'true');
+    return;
+  }
+
+  const groups = new Map<string, { firstDate: string; lastRow: { id: number; date: string }; count: number }>();
+
+  for (const row of allRows) {
+    const entry = groups.get(row.group_id);
+    if (!entry) {
+      groups.set(row.group_id, { firstDate: row.date, lastRow: row, count: 1 });
+    } else {
+      if (row.date > entry.lastRow.date) {
+        entry.lastRow = row;
+      }
+      if (row.date < entry.firstDate) {
+        entry.firstDate = row.date;
+      }
+      entry.count++;
+    }
+  }
+
+  for (const [groupId, entry] of groups) {
+    if (entry.count <= 1) continue;
+
+    const daysDiff = Math.round(
+      (new Date(entry.lastRow.date).getTime() - new Date(entry.firstDate).getTime()) / 86400000
+    );
+
+    if (entry.count === daysDiff + 1) {
+      await supabase.from('reservations').delete().eq('id', entry.lastRow.id);
+      console.log(`Temizlendi: grup ${groupId}, checkout günü ${entry.lastRow.date} silindi`);
+    }
+  }
+
+  localStorage.setItem(CLEANUP_KEY, 'true');
 }
 
 export function normalizeTurkish(value: string): string {
@@ -241,7 +299,10 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void loadData();
+    void (async () => {
+      await cleanupOldReservations();
+      await loadData();
+    })();
   }, [loadData]);
 
   const roomsMap = useMemo(() => new Map(rooms.map((r) => [r.id, r])), [rooms]);
@@ -291,6 +352,36 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  async function resolveOldCheckoutConflicts(roomId: number, newDates: string[]): Promise<boolean> {
+    if (!supabase || newDates.length === 0) return false;
+
+    const { data: conflicts } = await supabase
+      .from('reservations')
+      .select('id, group_id, date')
+      .eq('room_id', roomId)
+      .in('date', newDates);
+
+    if (!conflicts || conflicts.length === 0) return true;
+
+    for (const c of conflicts) {
+      const { data: groupLast } = await supabase
+        .from('reservations')
+        .select('date')
+        .eq('group_id', c.group_id)
+        .order('date', { ascending: false })
+        .limit(1);
+
+      if (groupLast && groupLast.length > 0 && groupLast[0].date === c.date) {
+        await supabase.from('reservations').delete().eq('id', c.id);
+        console.log(`Eski checkout günü temizlendi: oda ${roomId}, tarih ${c.date}, grup ${c.group_id}`);
+      } else {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   const addReservationGroup = useCallback(async (group: Omit<ReservationGroup, 'groupId' | 'dates'>): Promise<{ ok: boolean; error?: string }> => {
     if (!supabase) return { ok: false, error: 'Veritabanı bağlantısı yok.' };
     const groupId = crypto.randomUUID();
@@ -314,7 +405,18 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
     }
 
     const { error } = await supabase.from('reservations').insert(rows);
-    if (error) return { ok: false, error: error.message };
+
+    if (error) {
+      const resolved = await resolveOldCheckoutConflicts(group.roomId, rows.map((r) => r.date));
+      if (resolved) {
+        const { error: retryErr } = await supabase.from('reservations').insert(rows);
+        if (retryErr) {
+          return { ok: false, error: retryErr.message };
+        }
+      } else {
+        return { ok: false, error: error.message };
+      }
+    }
 
     const now = new Date().toISOString();
     const newRows: DbReservation[] = rows.map((r) => ({
@@ -405,7 +507,14 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { error: insertErr } = await supabase.from('reservations').insert(rows);
+      let insertErr = (await supabase.from('reservations').insert(rows)).error;
+
+      if (insertErr) {
+        const resolved = await resolveOldCheckoutConflicts(group.roomId, rows.map((r) => r.date));
+        if (resolved) {
+          insertErr = (await supabase.from('reservations').insert(rows)).error;
+        }
+      }
 
       if (insertErr) {
         if (oldRows && oldRows.length > 0) {
