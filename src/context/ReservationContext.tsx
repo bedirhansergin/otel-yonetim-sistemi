@@ -1,4 +1,4 @@
-﻿import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+﻿import { createContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   fetchRooms,
   fetchCustomers,
@@ -301,6 +301,83 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  const loadReservationsOnly = useCallback(async () => {
+    const { data } = await fetchReservations();
+    if (data) setDbReservations(data as DbReservation[]);
+  }, []);
+
+  const loadMetaOnly = useCallback(async () => {
+    const [roomsRes, guestsRes] = await Promise.all([fetchRooms(), fetchCustomers()]);
+    if (roomsRes.data) {
+      setRooms(
+        (roomsRes.data as DbRoom[]).map((r) => ({
+          id: r.id,
+          roomNumber: r.room_number,
+          block: r.block,
+          floor: r.floor,
+          bedType: r.bed_type,
+        }))
+      );
+    }
+    if (guestsRes.data) {
+      setGuests(
+        (guestsRes.data as DbCustomer[]).map((g) => ({
+          id: g.id,
+          fullName: g.full_name,
+          phone: g.phone,
+          idNumber: g.id_number,
+          nationality: g.nationality,
+        }))
+      );
+    }
+  }, []);
+
+  const debounceReservationsRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debounceMetaRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!supabase) return;
+    const db = supabase;
+
+    const channel = db
+      .channel('db-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'reservations' },
+        () => {
+          if (debounceReservationsRef.current) clearTimeout(debounceReservationsRef.current);
+          debounceReservationsRef.current = setTimeout(() => { void loadReservationsOnly(); }, 300);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'rooms' },
+        () => {
+          if (debounceMetaRef.current) clearTimeout(debounceMetaRef.current);
+          debounceMetaRef.current = setTimeout(() => { void loadMetaOnly(); }, 300);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'customers' },
+        () => {
+          if (debounceMetaRef.current) clearTimeout(debounceMetaRef.current);
+          debounceMetaRef.current = setTimeout(() => { void loadMetaOnly(); }, 300);
+        }
+      )
+      .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR' && err) {
+          console.warn('Realtime aboneliği başarısız:', err.message);
+        }
+      });
+
+    return () => {
+      void db.removeChannel(channel);
+      if (debounceReservationsRef.current) clearTimeout(debounceReservationsRef.current);
+      if (debounceMetaRef.current) clearTimeout(debounceMetaRef.current);
+    };
+  }, [loadReservationsOnly, loadMetaOnly]);
 
   const roomsMap = useMemo(() => new Map(rooms.map((r) => [r.id, r])), [rooms]);
   const guestsMap = useMemo(() => new Map(guests.map((g) => [g.id, g])), [guests]);

@@ -1,6 +1,6 @@
 ﻿import { ArrowRight, ArrowDownRight, ArrowUpRight, CalendarArrowDown, CalendarArrowUp, Clock, Users } from 'lucide-react';
 import { useContext, useMemo } from 'react';
-import { ReservationContext, getLocalDate } from '../context/ReservationContext';
+import { ReservationContext, getLocalDate, parseDate } from '../context/ReservationContext';
 
 export function HomePage() {
   const context = useContext(ReservationContext);
@@ -17,7 +17,16 @@ export function HomePage() {
   const tomorrowCheckIns = reservations.filter((r) => r.startDate === tomorrowStr);
   const tomorrowCheckOuts = reservations.filter((r) => r.endDate === tomorrowStr);
   const occupiedRoomIds = new Set(allTodayReservations.map((r) => r.roomId));
-  const pendingReservations = reservations.filter((r) => r.amountPaid < r.totalPrice);
+  const pendingReservations = reservations.filter((r) => {
+    if (r.amountPaid >= r.totalPrice) return false;
+    const nights =
+      r.dates.length > 0
+        ? r.dates.length
+        : Math.round((parseDate(r.endDate).getTime() - parseDate(r.startDate).getTime()) / 86400000);
+    if (nights > 35) return false;
+    if (r.startDate > today) return false;
+    return true;
+  });
   const formatter = useMemo(() => new Intl.NumberFormat('tr-TR'), []);
 
   const summaryCards = [
