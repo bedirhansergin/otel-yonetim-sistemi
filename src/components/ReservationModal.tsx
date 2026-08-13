@@ -578,6 +578,20 @@ export function ReservationModal() {
             </label>
           </div>
 
+          {formState.totalPrice - formState.amountPaid > 0 ? (
+            <div className="rounded-2xl border-2 border-rose-500/40 bg-rose-500/10 px-4 py-3 text-center">
+              <span className="text-base font-bold text-rose-300">
+                Kalan Ücret: {new Intl.NumberFormat('tr-TR').format(formState.totalPrice - formState.amountPaid)} TL
+              </span>
+            </div>
+          ) : (
+            <div className="rounded-2xl border-2 border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-center">
+              <span className="text-sm font-semibold text-emerald-300">
+                Kalan ücret yok — tahsilat tamamlandı
+              </span>
+            </div>
+          )}
+
           <div className="border-t-2 border-slate-600 pt-4">
             <div className="flex items-center justify-between gap-3 mb-3">
               <span className="text-sm font-semibold text-white">Ek Misafirler</span>
