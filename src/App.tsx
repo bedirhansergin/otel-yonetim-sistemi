@@ -7,6 +7,7 @@ import { RoomsPage } from './pages/RoomsPage';
 import { GuestsPage } from './pages/GuestsPage';
 import { AccountingPage } from './pages/AccountingPage';
 import { GanttPage } from './pages/GanttPage';
+import { SearchPage } from './pages/SearchPage';
 import { LoginPage } from './pages/LoginPage';
 import { ReservationModal } from './components/ReservationModal';
 import { LogOut, Menu, Plus, X } from 'lucide-react';
@@ -15,6 +16,7 @@ const navItems = [
   { to: '/', label: 'Anasayfa' },
   { to: '/gantt', label: 'Aylık Çizelge' },
   { to: '/odalar', label: 'Odalar' },
+  { to: '/arama', label: 'Arama' },
   { to: '/misafirler', label: 'Misafir Bilgileri' },
   { to: '/muhasebe', label: 'Muhasebe Panosu' },
 ];
@@ -198,6 +200,7 @@ function AuthenticatedApp() {
                   <Route path="/" element={<HomePage />} />
                   <Route path="/gantt" element={<GanttPage />} />
                   <Route path="/odalar" element={<RoomsPage />} />
+                  <Route path="/arama" element={<SearchPage />} />
                   <Route path="/misafirler" element={<GuestsPage />} />
                   <Route path="/muhasebe" element={<AccountingPage />} />
                 </Routes>
