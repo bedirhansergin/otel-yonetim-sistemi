@@ -15,8 +15,8 @@ import { LogOut, Menu, Plus, X } from 'lucide-react';
 const navItems = [
   { to: '/', label: 'Anasayfa' },
   { to: '/gantt', label: 'Aylık Çizelge' },
+  { to: '/arama', label: '- Arama' },
   { to: '/odalar', label: 'Odalar' },
-  { to: '/arama', label: 'Arama' },
   { to: '/misafirler', label: 'Misafir Bilgileri' },
   { to: '/muhasebe', label: 'Muhasebe Panosu' },
 ];
