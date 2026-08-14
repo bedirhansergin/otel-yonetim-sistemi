@@ -54,6 +54,7 @@ export interface ReservationContextValue {
   selectedGroupId: string | null;
   addReservationGroup: (group: Omit<ReservationGroup, 'groupId' | 'dates'>) => Promise<{ ok: boolean; error?: string }>;
   updateReservationGroup: (group: ReservationGroup) => Promise<{ ok: boolean; error?: string }>;
+  updateReservationNotes: (groupId: string, notes: string) => Promise<boolean>;
   restoreBackup: (entry: BackupEntry) => Promise<boolean>;
   deleteReservationGroup: (groupId: string) => Promise<boolean>;
 }
@@ -69,13 +70,20 @@ export interface ExtraGuest {
   _key?: number;
 }
 
-export function parseStructuredNotes(notes: string | null): { cleanNotes: string; mealPlan: string | null; extraGuests: ExtraGuest[] } {
+export interface YemekTakip {
+  included: number[];
+  paid: boolean;
+  guestCount?: number;
+}
+
+export function parseStructuredNotes(notes: string | null): { cleanNotes: string; mealPlan: string | null; extraGuests: ExtraGuest[]; yemekTakip: YemekTakip | null } {
   const raw = (notes ?? '').trimEnd();
   const lines = raw.split('\n');
-  const metaStart = lines.findIndex((l) => l.startsWith('-- ') && (l.includes('Kahvaltı') || l.includes('Tam Pansiyon') || l.startsWith('-- Misafir:')));
+  const metaStart = lines.findIndex((l) => l.startsWith('-- ') && (l.includes('Kahvaltı') || l.includes('Tam Pansiyon') || l.startsWith('-- Misafir:') || l.startsWith('-- Yemek Takip:')));
 
   let cleanNotes = raw;
   let mealPlan: string | null = null;
+  let yemekTakip: YemekTakip | null = null;
   const extraGuests: ExtraGuest[] = [];
 
   if (metaStart >= 0) {
@@ -92,14 +100,35 @@ export function parseStructuredNotes(notes: string | null): { cleanNotes: string
           phone: (parts[1] ?? '').trim(),
           tc: (parts[2] ?? '').trim(),
         });
+      } else if (ml.startsWith('-- Yemek Takip: ')) {
+        const payload = ml.slice('-- Yemek Takip: '.length).trim();
+        const parts = payload.split('|').map((p) => p.trim());
+        const included = (parts[0] ?? '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s !== '')
+          .map(Number)
+          .filter((n) => Number.isInteger(n) && n >= 0);
+        const guestCount = parts[2] !== undefined ? Number(parts[2]) : NaN;
+        yemekTakip = {
+          included,
+          paid: (parts[1] ?? '') === '1',
+          guestCount: Number.isInteger(guestCount) && guestCount >= 0 ? guestCount : undefined,
+        };
       }
     }
   }
 
-  return { cleanNotes, mealPlan, extraGuests };
+  return { cleanNotes, mealPlan, extraGuests, yemekTakip };
 }
 
-export function buildStructuredNotes(cleanNotes: string, mealPlan: string, extraGuests: ExtraGuest[]): string {
+export function buildStructuredNotes(
+  cleanNotes: string,
+  mealPlan: string,
+  extraGuests: ExtraGuest[],
+  yemekTakip?: YemekTakip | null,
+  guestCount?: number
+): string {
   const parts: string[] = [];
   if (cleanNotes.trim()) parts.push(cleanNotes.trimEnd());
 
@@ -111,6 +140,15 @@ export function buildStructuredNotes(cleanNotes: string, mealPlan: string, extra
     const name = eg.name.trim();
     if (!name) continue;
     parts.push(`-- Misafir: ${name} | ${eg.phone.trim()} | ${eg.tc.trim()}`);
+  }
+
+  if (yemekTakip && (mealPlan === 'Kahvaltı' || mealPlan === 'Tam Pansiyon')) {
+    const count = guestCount !== undefined ? guestCount : yemekTakip.guestCount;
+    parts.push(
+      `-- Yemek Takip: ${yemekTakip.included.join(',')} | ${yemekTakip.paid ? '1' : '0'}${
+        count !== undefined ? ` | ${count}` : ''
+      }`
+    );
   }
 
   return parts.join('\n');
@@ -636,6 +674,17 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
     return { ok: true };
   }, [refreshCustomersAndRooms, reservations]);
 
+  const updateReservationNotes = useCallback(async (groupId: string, notes: string): Promise<boolean> => {
+    if (!supabase) return false;
+    const { error } = await supabase
+      .from('reservations')
+      .update({ notes })
+      .eq('group_id', groupId);
+    if (error) return false;
+    setDbReservations((prev) => prev.map((r) => (r.group_id === groupId ? { ...r, notes } : r)));
+    return true;
+  }, []);
+
   const restoreBackup = async (entry: BackupEntry): Promise<boolean> => {
     if (!supabase) return false;
     const r = entry.reservation;
@@ -732,6 +781,7 @@ export function ReservationProvider({ children }: { children: ReactNode }) {
         selectedGroupId,
         addReservationGroup,
         updateReservationGroup,
+        updateReservationNotes,
         restoreBackup,
         deleteReservationGroup,
       }}

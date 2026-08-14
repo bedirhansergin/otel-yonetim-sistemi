@@ -1,5 +1,5 @@
 ﻿import { useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { ReservationContext, normalizeTurkish, parseStructuredNotes, buildStructuredNotes, getLocalDate, formatDate, parseDate, NEW_GROUP_ID, type ReservationGroup, type ExtraGuest } from '../context/ReservationContext';
+import { ReservationContext, normalizeTurkish, parseStructuredNotes, buildStructuredNotes, getLocalDate, formatDate, parseDate, NEW_GROUP_ID, type ReservationGroup, type ExtraGuest, type YemekTakip } from '../context/ReservationContext';
 import { supabase } from '../lib/supabaseClient';
 import { Trash2 } from 'lucide-react';
 import { ErrorDisplay } from './ErrorDisplay';
@@ -34,6 +34,7 @@ export function ReservationModal() {
   const [guestIdNumber, setGuestIdNumber] = useState('');
   const [extraGuests, setExtraGuests] = useState<ExtraGuest[]>([]);
   const [egCounter, setEgCounter] = useState(0);
+  const [yemekTakip, setYemekTakip] = useState<YemekTakip | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
 
   const isNew = !selectedReservation || showNewForm || selectedGroupId === NEW_GROUP_ID;
@@ -54,6 +55,7 @@ export function ReservationModal() {
     setGuestIdNumber('');
     setExtraGuests([]);
     setEgCounter(0);
+    setYemekTakip(null);
     setError('');
     setErrorDialog(null);
     setSuggestions([]);
@@ -69,6 +71,7 @@ export function ReservationModal() {
       setGuestIdNumber('');
       setExtraGuests([]);
       setEgCounter(0);
+      setYemekTakip(null);
       setFormState({
         groupId: '',
         roomId: rooms[0]?.id ?? 0,
@@ -93,6 +96,16 @@ export function ReservationModal() {
       const parsed = parseStructuredNotes(selectedReservation.notes);
       setFormState({ ...selectedReservation, notes: parsed.cleanNotes || null });
       setExtraGuests(parsed.extraGuests);
+      const guestCount = 1 + parsed.extraGuests.length;
+      setYemekTakip(
+        parsed.yemekTakip
+          ? {
+              included: parsed.yemekTakip.included.filter((i) => i >= 0 && i < guestCount),
+              paid: parsed.yemekTakip.paid,
+              guestCount: parsed.yemekTakip.guestCount,
+            }
+          : { included: Array.from({ length: guestCount }, (_, i) => i), paid: false }
+      );
       const g = guests.find((x) => x.id === selectedReservation.guestId);
       setGuestPhone(g ? (g.phone !== '-' ? g.phone : '') : '');
       setGuestIdNumber(g ? (g.idNumber !== '-' ? g.idNumber : '') : '');
@@ -278,7 +291,10 @@ export function ReservationModal() {
       }
       await updateGuestInfo(guestId, guestName, guestPhone, guestIdNumber);
 
-      const finalNotes = buildStructuredNotes(formState.notes ?? '', formState.mealPlan, extraGuests);
+      const finalTakip = yemekTakip && (formState.mealPlan === 'Kahvaltı' || formState.mealPlan === 'Tam Pansiyon')
+        ? { included: yemekTakip.included.filter((i) => i >= 0 && i <= extraGuests.length), paid: yemekTakip.paid, guestCount: yemekTakip.guestCount }
+        : null;
+      const finalNotes = buildStructuredNotes(formState.notes ?? '', formState.mealPlan, extraGuests, finalTakip);
       const result = await addReservationGroup({
         roomId: formState.roomId,
         roomNumber: formState.roomNumber,
@@ -308,9 +324,12 @@ export function ReservationModal() {
       }
       await updateGuestInfo(guestId, updatedName, guestPhone, guestIdNumber);
       const updatedFormState = { ...formState, guestId, guestName: updatedName };
+      const finalTakip = yemekTakip && (formState.mealPlan === 'Kahvaltı' || formState.mealPlan === 'Tam Pansiyon')
+        ? { included: yemekTakip.included.filter((i) => i >= 0 && i <= extraGuests.length), paid: yemekTakip.paid, guestCount: yemekTakip.guestCount }
+        : null;
       const result = await updateReservationGroup({
         ...updatedFormState,
-        notes: buildStructuredNotes(formState.notes ?? '', formState.mealPlan, extraGuests),
+        notes: buildStructuredNotes(formState.notes ?? '', formState.mealPlan, extraGuests, finalTakip),
       });
       if (!result.ok) {
         setErrorDialog(result.error || 'Güncelleme sırasında bir hata oluştu. Verileriniz korundu.');
