@@ -68,10 +68,26 @@ export async function fetchCustomers() {
 
 export async function fetchReservations() {
   if (!supabase) return { data: [] as DbReservation[], error: null };
-  const { data, error } = await supabase
-    .from('reservations')
-    .select('*')
-    .order('date', { ascending: true });
-  if (error) return { data: [] as DbReservation[], error };
-  return { data: data as DbReservation[], error: null };
+
+  const PAGE_SIZE = 1000;
+  const all: DbReservation[] = [];
+  let from = 0;
+  let to = PAGE_SIZE - 1;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('reservations')
+      .select('*')
+      .order('date', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to);
+    if (error) return { data: [] as DbReservation[], error };
+    if (!data || data.length === 0) break;
+    all.push(...(data as DbReservation[]));
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+    to += PAGE_SIZE;
+  }
+
+  return { data: all, error: null };
 }
